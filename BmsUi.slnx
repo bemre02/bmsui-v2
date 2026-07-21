@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BmsUi.Tests/BmsUi.Tests.csproj" />
+  <Project Path="BmsUi/BmsUi.csproj" />
+</Solution>
