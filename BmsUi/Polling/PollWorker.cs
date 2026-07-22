@@ -27,6 +27,12 @@ public sealed class PollWorker : IDisposable
 
     public PollWorker(SerialLink link) => _link = link;
 
+    /// <summary>
+    /// Set while the Registers tab is visible. Off by default, so the extra sweep costs
+    /// nothing when nobody is looking at it.
+    /// </summary>
+    public bool IncludeAllRegisters { get; set; }
+
     public event Action<BmsSnapshot>? SnapshotReady;
     public event Action<string>? ConnectionLost;
 
@@ -121,6 +127,11 @@ public sealed class PollWorker : IDisposable
 
             case PollItem.SummaryRegisters:
                 foreach (byte idx in PollSchedule.SummaryRegisters) PollRegister(idx);
+                break;
+
+            case PollItem.AllRegisters:
+                if (!IncludeAllRegisters) break;
+                foreach (byte idx in PollSchedule.SweepRegisters) PollRegister(idx);
                 break;
 
             case PollItem.CellVoltages:

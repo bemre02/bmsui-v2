@@ -50,7 +50,24 @@ public class PollScheduleTests
     [Fact]
     public void TransactionsPerSecond_MatchesDesignBudget()
     {
-        // 1 second = 10 ticks; the design budget is ~97 transactions/s
+        // 1 second = 10 ticks. Budget is ~97 transactions/s with the Registers tab closed:
+        // the sweep is opt-in, so PollItem.AllRegisters costs nothing until it is enabled.
+        Assert.InRange(TransactionsPerSecond(sweepEnabled: false), 90, 105);
+    }
+
+    [Fact]
+    public void RegisterSweep_AddsItsCost_OnlyWhenEnabled()
+    {
+        int closed = TransactionsPerSecond(sweepEnabled: false);
+        int open = TransactionsPerSecond(sweepEnabled: true);
+
+        // The sweep runs at 1 Hz, so it adds exactly one pass over SweepRegisters per second
+        Assert.Equal(closed + PollSchedule.SweepRegisters.Length, open);
+        Assert.InRange(open, 120, 140);
+    }
+
+    private static int TransactionsPerSecond(bool sweepEnabled)
+    {
         int total = 0;
         for (long t = 0; t < 10; t++)
             foreach (var item in PollSchedule.ItemsForTick(t))
@@ -58,8 +75,47 @@ public class PollScheduleTests
                 {
                     PollItem.FastRegisters => PollSchedule.FastRegisters.Length,
                     PollItem.SummaryRegisters => PollSchedule.SummaryRegisters.Length,
+                    PollItem.AllRegisters => sweepEnabled ? PollSchedule.SweepRegisters.Length : 0,
                     _ => 1,
                 };
-        Assert.InRange(total, 90, 105);
+        return total;
+    }
+
+    [Fact]
+    public void SweepRegisters_ExcludeTheOnesAlreadyPolled()
+    {
+        // Asking again for values refreshed at 5-10 Hz would be redundant traffic
+        var regular = PollSchedule.FastRegisters
+            .Concat(PollSchedule.SummaryRegisters)
+            .Concat(PollSchedule.ConfigRegisters)
+            .ToHashSet();
+
+        Assert.All(PollSchedule.SweepRegisters, idx => Assert.DoesNotContain(idx, regular));
+    }
+
+    [Fact]
+    public void SweepRegisters_CoverEveryOtherReadableIndex()
+    {
+        var covered = PollSchedule.FastRegisters
+            .Concat(PollSchedule.SummaryRegisters)
+            .Concat(PollSchedule.ConfigRegisters)
+            .Concat(PollSchedule.SweepRegisters)
+            .ToHashSet();
+
+        Assert.Equal(RegisterCatalog.All.Count, covered.Count);
+        Assert.All(RegisterCatalog.All, d => Assert.Contains(d.Index, covered));
+    }
+
+    [Fact]
+    public void SweepRegisters_AreAllReadable()
+        => Assert.All(PollSchedule.SweepRegisters,
+                      idx => Assert.True(HvProtocol.IsValidRegister(idx)));
+
+    [Fact]
+    public void AllRegisters_IsScheduledEveryTenthTick_GivingOneHz()
+    {
+        Assert.Contains(PollItem.AllRegisters, PollSchedule.ItemsForTick(0));
+        Assert.Contains(PollItem.AllRegisters, PollSchedule.ItemsForTick(10));
+        Assert.DoesNotContain(PollItem.AllRegisters, PollSchedule.ItemsForTick(5));
     }
 }

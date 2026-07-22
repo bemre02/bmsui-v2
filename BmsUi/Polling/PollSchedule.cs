@@ -2,7 +2,7 @@ using BmsUi.Protocol;
 
 namespace BmsUi.Polling;
 
-public enum PollItem { FastRegisters, SummaryRegisters, CellVoltages, CellTemps, Balance }
+public enum PollItem { FastRegisters, SummaryRegisters, CellVoltages, CellTemps, Balance, AllRegisters }
 
 /// <summary>
 /// Tiered schedule on a 10 Hz base tick (pure function — testable): fast registers every
@@ -26,6 +26,22 @@ public static class PollSchedule
     /// </summary>
     public static readonly byte[] ConfigRegisters = { Reg.AllowedDisbalance };
 
+    /// <summary>
+    /// Everything the regular schedule does not already cover, for the Registers tab.
+    /// Only swept while that tab is visible; the values left out are refreshed at 5-10 Hz
+    /// anyway and are already in the snapshot the table reads from.
+    /// </summary>
+    public static readonly byte[] SweepRegisters = BuildSweep();
+
+    private static byte[] BuildSweep()
+    {
+        var regular = FastRegisters.Concat(SummaryRegisters).Concat(ConfigRegisters).ToHashSet();
+        return RegisterCatalog.All
+            .Select(d => d.Index)
+            .Where(idx => !regular.Contains(idx))
+            .ToArray();
+    }
+
     public const int TickIntervalMs = 100;   // 10 Hz
 
     public static IReadOnlyList<PollItem> ItemsForTick(long tick)
@@ -38,6 +54,7 @@ public static class PollSchedule
             items.Add(PollItem.CellTemps);
         }
         if (tick % 5 == 0) items.Add(PollItem.Balance);
+        if (tick % 10 == 0) items.Add(PollItem.AllRegisters);
         return items;
     }
 }
