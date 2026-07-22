@@ -59,7 +59,7 @@ Her hücre çerçevesiz dolu bir kutudur; yazı boyutu pencere boyutuyla ölçek
 |---|---|
 | Dolgu rengi | **Voltaj:** düşük = kırmızı, orta = sarı, yüksek = yeşil. **Sıcaklık:** düşük = koyu, yüksek = parlak amber (yüksek sıcaklık iyi bir şey olmadığı için yeşil kullanılmaz) |
 | Ortadaki sayı | Değerin kendisi — renk yaklaşık, sayı kesin |
-| Kalın kontur + **⚠** (sağ üst) | Değer alarm eşiklerinin dışında |
+| Amber kontur + **⚠** (sağ üst) | Değer alarm eşiklerinin dışında |
 | **▲ / ▼** (sağ üst) | 96 hücrenin genel ortalamasının üstünde / altında |
 | **σ+ / σ−** (sağ alt) | Kendi segmentinin ortalamasından ±1σ'dan fazla sapmış |
 | **B** rozeti (sol alt) | Hücre balansta |
@@ -74,7 +74,11 @@ tona düşüp görünmez hâle geliyordu.
 **Alarm dolguyu değiştirmez.** Voltaj skalasının düşük ucu zaten kırmızı olduğu için kırmızı
 bir alarm dolgusu "düşük ama normal" hücreyle karışırdı; ayrıca eşik yanlış ayarlanınca bütün
 ızgara tek renge düşer ve hiçbir hücre diğerinden ayırt edilemez hâle gelirdi. Alarm bunun
-yerine kalın kontur + ⚠ ile gösterilir, dolgu değeri göstermeye devam eder.
+yerine **amber kontur + ⚠** ile gösterilir (ikonla aynı renk, altında koyu kılıf sayesinde
+amber dolgu üzerinde de görünür), dolgu değeri göstermeye devam eder.
+
+Ekranda beklenmedik biçimde çok sayıda hücre kontur alıyorsa alarm eşiğiniz dar demektir —
+Ayarlar sekmesinden kontrol edin, "Varsayılana dön" firmware eşiklerine döndürür.
 
 **İki istatistik işareti neden ayrı?** ▲/▼ paketin bütününe göre konumu, σ± ise hücrenin kendi
 komşularından ayrışıp ayrışmadığını söyler. Bir segment tümüyle paket ortalamasının altındaysa,
@@ -249,7 +253,7 @@ turları arasında işlenir.
 
 ## Testler
 
-`dotnet test` — 131 test:
+`dotnet test` — 134 test:
 
 - CRC-8/SMBUS bilinen vektörler (`"123456789"` → `0xF4`)
 - 194/14/4 baytlık çerçeve ayrıştırma, işaretli sıcaklık ve akım, bozuk CRC ve yanlış kimlik reddi

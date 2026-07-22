@@ -174,9 +174,16 @@ public sealed class CellGridControl : Control
             DrawStatMarks(g, tile, mark, ink, markFont, state == CellState.Alarm);
 
         // Alarm: dolgu degeri gostermeye devam eder; alarm kalin kontur + ikonla gelir
+        // Kontur ⚠ ikonuyla AYNI amber renkte — mürekkep rengiyle çizilince açık
+        // dolgularda siyahlaşıp "alarm" değil "çizim hatası" gibi duruyordu.
+        // Amberin altına koyu bir kılıf: amber dolgu üzerinde de sınır görünür kalsın.
         if (state == CellState.Alarm)
         {
-            using (var pen = new Pen(ink, Math.Max(2f, tile.Height * 0.045f)))
+            float w = Math.Max(2f, tile.Height * 0.045f);
+            using (var casing = new Pen(Color.FromArgb(190, 25, 25, 25), w + 1.8f))
+            using (var path = RoundedRect(tile, radius))
+                g.DrawPath(casing, path);
+            using (var pen = new Pen(Heatmap.WarningColor, w))
             using (var path = RoundedRect(tile, radius))
                 g.DrawPath(pen, path);
             DrawWarningBadge(g, tile);
