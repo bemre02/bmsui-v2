@@ -114,9 +114,44 @@ public class HeatmapTests
         // Koyu kirmizi dolgu -> beyaz yazi
         Assert.Equal(Color.White, Heatmap.InkOn(Heatmap.VoltageRamp[0]));
         // Parlak sari dolgu -> koyu yazi (beyaz okunmaz)
-        Assert.Equal(Heatmap.FromHex(0x0B0B0B), Heatmap.InkOn(Heatmap.FromHex(0xEAB308)));
+        Assert.Equal(Heatmap.DarkInk, Heatmap.InkOn(Heatmap.FromHex(0xEAB308)));
         // Acik krem dolgu -> koyu yazi
-        Assert.Equal(Heatmap.FromHex(0x0B0B0B), Heatmap.InkOn(Heatmap.TemperatureRamp[^1]));
+        Assert.Equal(Heatmap.DarkInk, Heatmap.InkOn(Heatmap.TemperatureRamp[^1]));
+    }
+
+    [Fact]
+    public void InkOn_GreenEnd_UsesDarkInk()
+    {
+        // Regresyon: doygun yesil algisal parlaklik formulunde esigin altina dusup
+        // beyaz yazi aliyordu; gercek kontrast koyu yazidan yana (8.6'ya karsi 2.3)
+        Assert.Equal(Heatmap.DarkInk, Heatmap.InkOn(Heatmap.VoltageRamp[^1]));
+    }
+
+    [Fact]
+    public void InkOn_AlwaysPicksTheHigherContrastOption()
+    {
+        foreach (var fill in Heatmap.VoltageRamp.Concat(Heatmap.TemperatureRamp))
+        {
+            double l = Heatmap.RelativeLuminance(fill);
+            double white = 1.05 / (l + 0.05);
+            double dark = (l + 0.05) / (Heatmap.RelativeLuminance(Heatmap.DarkInk) + 0.05);
+            var expected = white >= dark ? Color.White : Heatmap.DarkInk;
+            Assert.Equal(expected, Heatmap.InkOn(fill));
+        }
+    }
+
+    [Fact]
+    public void InkOn_ChosenInkAlwaysClears4_5To1()
+    {
+        // Secilen murekkep her ramp adiminda okunabilir olmali (WCAG AA metin esigi)
+        foreach (var fill in Heatmap.VoltageRamp.Concat(Heatmap.TemperatureRamp))
+        {
+            var ink = Heatmap.InkOn(fill);
+            double lf = Heatmap.RelativeLuminance(fill);
+            double li = Heatmap.RelativeLuminance(ink);
+            double ratio = (Math.Max(lf, li) + 0.05) / (Math.Min(lf, li) + 0.05);
+            Assert.True(ratio >= 4.5, $"#{fill.R:X2}{fill.G:X2}{fill.B:X2} kontrasti {ratio:F2}");
+        }
     }
 
     private static double Luminance(Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;

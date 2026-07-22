@@ -87,10 +87,39 @@ public static class Heatmap
         ? InvalidColor
         : Sequential(value, scaleLow, scaleHigh, ramp);
 
-    /// <summary>Dolgunun uzerine yazilacak metin rengi — acik zeminde koyu murekkep.</summary>
+    /// <summary>
+    /// Saf siyah — #0B0B0B degil. Bir ramp koyudan aciga gecerken mutlaka beyaz ve koyu
+    /// murekkebin esitlendigi noktadan geciyor; oradaki kontrast tavanini murekkebin
+    /// koyulugu belirliyor. #0B0B0B ile bu taban 4.44'te kaliyordu (AA esigi 4.5'in
+    /// altinda), saf siyahla 4.58'e cikiyor.
+    /// </summary>
+    public static readonly Color DarkInk = Color.Black;
+
+    /// <summary>
+    /// Dolgunun üzerine yazılacak metin rengi: beyaz mı koyu mu daha yüksek kontrast
+    /// veriyorsa o.
+    ///
+    /// Basit "algısal parlaklık + sabit eşik" yaklaşımı burada yanlış sonuç veriyordu:
+    /// doygun yeşil (#22C55E) o formülde 0.535 çıkıp eşiğin altına düşüyor ve beyaz yazı
+    /// seçiliyordu, oysa gerçek kontrast beyazda 2.3, koyuda 8.6. Hücre değeri rampın en
+    /// üst adımına girip çıktıkça yazı rengi bir beyaz bir koyu oluyordu.
+    /// Artık WCAG bağıl parlaklığı üzerinden iki seçenek karşılaştırılıyor.
+    /// </summary>
     public static Color InkOn(Color fill)
     {
-        double luminance = (0.299 * fill.R + 0.587 * fill.G + 0.114 * fill.B) / 255.0;
-        return luminance > 0.62 ? FromHex(0x0B0B0B) : Color.White;
+        double l = RelativeLuminance(fill);
+        double whiteContrast = 1.05 / (l + 0.05);
+        double darkContrast = (l + 0.05) / (RelativeLuminance(DarkInk) + 0.05);
+        return whiteContrast >= darkContrast ? Color.White : DarkInk;
+    }
+
+    /// <summary>WCAG 2.x bağıl parlaklık (sRGB doğrusallaştırmasıyla).</summary>
+    public static double RelativeLuminance(Color c)
+        => 0.2126 * Linearize(c.R) + 0.7152 * Linearize(c.G) + 0.0722 * Linearize(c.B);
+
+    private static double Linearize(byte channel)
+    {
+        double v = channel / 255.0;
+        return v <= 0.03928 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
     }
 }
