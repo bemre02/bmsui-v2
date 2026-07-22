@@ -26,7 +26,9 @@ dotnet test
 ## Kullanım
 
 1. Üstteki listeden COM portunu seçip **Başlat**'a basın (kart yoksa **Simülasyon** kutusunu
-   işaretleyip Başlat demeniz yeterli).
+   işaretleyip Başlat demeniz yeterli). Liste kart takılıp çıkarıldığında **kendiliğinden
+   tazelenir**; her port yanında türü yazar (`COM12 — USB`, `COM3 — Bluetooth`,
+   `COM5 — ST-Link`), böylece hangisinin BMS olduğu bakınca anlaşılır.
 2. Uygulama önce `0x17 0x71` ping'i gönderir; cihaz echo döndürmezse bağlanmaz
    (yanlış porta bağlanıp saçma veri göstermeyi engeller).
 3. Bağlantı kurulunca poll worker başlar ve sol panel + sekmeler canlı güncellenir.
@@ -203,7 +205,7 @@ turları arasında işlenir.
 
 ## Testler
 
-`dotnet test` — 105 test:
+`dotnet test` — 119 test:
 
 - CRC-8/SMBUS bilinen vektörler (`"123456789"` → `0xF4`)
 - 194/14/4 baytlık çerçeve ayrıştırma, işaretli sıcaklık ve akım, bozuk CRC ve yanlış kimlik reddi

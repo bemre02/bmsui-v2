@@ -39,15 +39,58 @@ public partial class Form1 : Form
 
     // ------------------------------------------------------------------ baglanti
 
+    private const int WM_DEVICECHANGE = 0x0219;
+    private const int DBT_DEVNODES_CHANGED = 0x0007;
+
+    /// <summary>
+    /// USB cihaz takılıp çıkarıldığında Windows bunu her üst düzey pencereye yayınlar.
+    /// Liste kendiliğinden tazelenmezse kullanıcı programı açtıktan sonra taktığı kartı
+    /// göremiyor — "Yenile"ye basmasını beklemek hataya davetiye.
+    /// </summary>
+    protected override void WndProc(ref Message m)
+    {
+        base.WndProc(ref m);
+
+        if (m.Msg == WM_DEVICECHANGE && m.WParam.ToInt32() == DBT_DEVNODES_CHANGED &&
+            _link is null && !portCombo.DroppedDown)
+            RefreshPorts();
+    }
+
+    private string? SelectedPortName() => (portCombo.SelectedItem as PortInfo)?.Name;
+
+    private bool SelectPort(string? name)
+    {
+        if (name is null) return false;
+        for (int i = 0; i < portCombo.Items.Count; i++)
+            if (portCombo.Items[i] is PortInfo info &&
+                string.Equals(info.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                portCombo.SelectedIndex = i;
+                return true;
+            }
+        return false;
+    }
+
     private void RefreshPorts()
     {
-        string? previous = portCombo.SelectedItem as string;
+        string? previous = SelectedPortName();
+        var ports = SerialPortCatalog.List();
+
+        // Liste değişmediyse dokunma — seçim boşuna sıfırlanmasın
+        if (portCombo.Items.Count == ports.Count)
+        {
+            bool same = true;
+            for (int i = 0; i < ports.Count && same; i++)
+                same = portCombo.Items[i] is PortInfo existing && existing == ports[i];
+            if (same) return;
+        }
+
+        portCombo.BeginUpdate();
         portCombo.Items.Clear();
-        portCombo.Items.AddRange(System.IO.Ports.SerialPort.GetPortNames());
-        if (previous is not null && portCombo.Items.Contains(previous))
-            portCombo.SelectedItem = previous;
-        else if (portCombo.Items.Count > 0)
-            portCombo.SelectedIndex = 0;
+        foreach (var port in ports) portCombo.Items.Add(port);
+        portCombo.EndUpdate();
+
+        if (!SelectPort(previous) && portCombo.Items.Count > 0) portCombo.SelectedIndex = 0;
     }
 
     private void refreshButton_Click(object? sender, EventArgs e) => RefreshPorts();
@@ -75,7 +118,7 @@ public partial class Form1 : Form
         }
         else
         {
-            if (portCombo.SelectedItem is not string portName)
+            if (SelectedPortName() is not string portName)
             {
                 MessageBox.Show("Önce bir COM portu seçin " +
                                 "(ya da 'Simülasyon' kutusunu işaretleyin).", "Uyarı");
@@ -170,7 +213,7 @@ public partial class Form1 : Form
 
         SetStatus($"{_lastPortName} için yeniden deneniyor...", Theme.Warning);
         RefreshPorts();
-        portCombo.SelectedItem = _lastPortName;
+        if (!SelectPort(_lastPortName)) return;
         startButton_Click(this, EventArgs.Empty);
         if (_link is not null) reconnectTimer.Stop();
     }

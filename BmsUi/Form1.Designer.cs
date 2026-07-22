@@ -116,30 +116,30 @@ partial class Form1
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
             Location = new Point(152, 15),
-            Width = 120,
+            Width = 175,
         };
-        refreshButton = new Button { Text = "Yenile", Location = new Point(282, 14), Width = 80 };
+        refreshButton = new Button { Text = "Yenile", Location = new Point(337, 14), Width = 80 };
         refreshButton.Click += refreshButton_Click;
-        startButton = new Button { Text = "Başlat", Location = new Point(370, 14), Width = 90 };
+        startButton = new Button { Text = "Başlat", Location = new Point(425, 14), Width = 90 };
         startButton.Click += startButton_Click;
         statusLabel = new Label
         {
             Text = "Bağlı değil",
             AutoSize = true,
-            Location = new Point(474, 19),
+            Location = new Point(529, 19),
         };
         simulationCheck = new CheckBox
         {
             Text = "Simülasyon (kart gerekmez)",
             AutoSize = true,
-            Location = new Point(640, 18),
+            Location = new Point(700, 18),
         };
         simulationCheck.CheckedChanged += simulationCheck_CheckedChanged;
         autoReconnectCheck = new CheckBox
         {
             Text = "Otomatik yeniden bağlan",
             AutoSize = true,
-            Location = new Point(830, 18),
+            Location = new Point(890, 18),
             Checked = true,
         };
         reconnectTimer = new System.Windows.Forms.Timer(components) { Interval = 3000 };

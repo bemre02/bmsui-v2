@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("Formula Student HV BMS masaüstü arayüzü")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e9cf64d297626be22da6b61a20a1ecba7da44ce3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+93ccc1b74c058704ed30c148b1401d902a2bbdfc")]
 [assembly: System.Reflection.AssemblyProductAttribute("BMS UI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BMS UI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

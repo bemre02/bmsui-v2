@@ -242,3 +242,4 @@ C:\Users\burem\STM32CubeIDE\workspace_1.19.0\bmsui\BmsUi.Tests\obj\Debug\net10.0
 C:\Users\burem\STM32CubeIDE\workspace_1.19.0\bmsui\BmsUi.Tests\obj\Debug\net10.0-windows\BmsUi.Tests.pdb
 C:\Users\burem\STM32CubeIDE\workspace_1.19.0\bmsui\BmsUi.Tests\obj\Debug\net10.0-windows\BmsUi.Tests.genruntimeconfig.cache
 C:\Users\burem\STM32CubeIDE\workspace_1.19.0\bmsui\BmsUi.Tests\obj\Debug\net10.0-windows\ref\BmsUi.Tests.dll
+C:\Users\burem\STM32CubeIDE\workspace_1.19.0\bmsui\BmsUi.Tests\obj\Debug\net10.0-windows\BmsUi.Tests.sourcelink.json
