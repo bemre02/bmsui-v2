@@ -58,18 +58,18 @@ Her hücre çerçevesiz dolu bir kutudur; yazı boyutu pencere boyutuyla ölçek
 | Gösterim | Anlamı |
 |---|---|
 | Dolgu rengi | **Voltaj:** düşük = kırmızı, orta = sarı, yüksek = yeşil. **Sıcaklık:** düşük = koyu, yüksek = parlak amber (yüksek sıcaklık iyi bir şey olmadığı için yeşil kullanılmaz) |
-| **Alt çubuk** | Aynı değerin uzunlukla kodlanmış hâli |
-| Kalın kontur + **⚠ ikonu** | Değer alarm eşiklerinin dışında |
+| Ortadaki sayı | Değerin kendisi — renk yaklaşık, sayı kesin |
+| Kalın kontur + **⚠** (sağ üst) | Değer alarm eşiklerinin dışında |
 | **▲ / ▼** (sağ üst) | 96 hücrenin genel ortalamasının üstünde / altında |
 | **σ+ / σ−** (sağ alt) | Kendi segmentinin ortalamasından ±1σ'dan fazla sapmış |
+| **B** rozeti (sol alt) | Hücre balansta |
 | Gri dolgu + "—" | Hücre geçersiz/stale (0.00 V) |
-| Sol kenarda altın şerit | Hücre balansta |
 | Sol üstteki sayı | Lineer hücre indeksi — sol paneldeki min/maks indeksleriyle aynı numaralandırma |
 
-**Neden dört ayrı kanal?** Renk tek başına yeterli değil: kırmızı-yeşil renk körlüğü için en
-riskli çift, üstelik paket dengeliyken bütün hücreler aynı tona düşer. Bu yüzden değer her
-hücrede yazılı, alt çubuk aynı bilgiyi **uzunlukla** veriyor (uzunluk renkten çok daha keskin
-ayırt edilir) ve eşik dışı hücreler ayrıca ikon alıyor.
+Renk tek başına hiçbir şey taşımaz: değer her hücrede yazılı ve eşik dışı hücreler ayrıca ikon
+alır. Bu, kırmızı-yeşil renk körlüğü (en yaygın tip) için de bilginin kaybolmadığı anlamına
+gelir. Balans rozetinin konturu şart: altın renk, ramp'in sarı-turuncu ortasında dolguyla aynı
+tona düşüp görünmez hâle geliyordu.
 
 **Alarm dolguyu değiştirmez.** Voltaj skalasının düşük ucu zaten kırmızı olduğu için kırmızı
 bir alarm dolgusu "düşük ama normal" hücreyle karışırdı; ayrıca eşik yanlış ayarlanınca bütün

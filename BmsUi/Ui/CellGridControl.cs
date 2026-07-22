@@ -103,7 +103,7 @@ public sealed class CellGridControl : Control
         using var valueFont = new Font("Segoe UI", valueSize, FontStyle.Bold, GraphicsUnit.Point);
         // Indeks ve segment etiketleri kalin: soluk gri okunmuyordu
         using var indexFont = new Font("Segoe UI", indexSize, FontStyle.Bold, GraphicsUnit.Point);
-        using var markFont = new Font("Segoe UI", Math.Clamp(indexSize * 0.95f, 6.5f, 10f),
+        using var markFont = new Font("Segoe UI", Math.Clamp(indexSize * 1.3f, 8.5f, 13.5f),
                                       FontStyle.Bold, GraphicsUnit.Point);
         using var legendFont = new Font("Segoe UI", Math.Clamp(indexSize, 7.5f, 9.5f),
                                         FontStyle.Regular, GraphicsUnit.Point);
@@ -140,8 +140,9 @@ public sealed class CellGridControl : Control
 
     /// <summary>
     /// Hucre kutusu: cerceve yok — cerceve 96 kez tekrarlandiginda bilgi tasimadan
-    /// dolgu alanini yiyor. Dolgu buyuklugu renkle, alttaki cubuk ise UZUNLUKLA kodlar;
-    /// paket dengeliyken renkler birbirine yakin kalir ama cubuk farki hemen gosterir.
+    /// dolgu alanini yiyor. Dolgu degeri renkle kodlar; sayi zaten uzerinde yazili.
+    /// Kose rozetleri: indeks (sol ust), genel ortalama oku (sag ust), balans "B"
+    /// (sol alt), segment sigma isareti (sag alt).
     /// </summary>
     private void DrawCellTile(Graphics g, RectangleF tile, int index, double value,
                               CellState state, bool balancing, CellMark mark, Font valueFont,
@@ -157,31 +158,17 @@ public sealed class CellGridControl : Control
         using (var brush = new SolidBrush(fill))
             g.FillPath(brush, path);
 
-        // Balans: sol kenarda altin serit (halka yerine — 96 hucrede halka gurultu yapiyor)
-        if (balancing)
-        {
-            using var clip = RoundedRect(tile, radius);
-            var saved = g.Save();
-            g.SetClip(clip);
-            using (var strip = new SolidBrush(Heatmap.BalanceRing))
-                g.FillRectangle(strip, tile.X, tile.Y, Math.Max(3f, tile.Width * 0.075f),
-                                tile.Height);
-            g.Restore(saved);
-        }
-
         // Indeks kutunun icinde, sol ustte — disarida dursa dikey alani bosa harciyordu
         using (var indexBrush = new SolidBrush(Color.FromArgb(235, ink)))
-            g.DrawString(index.ToString(), indexFont, indexBrush,
-                         tile.X + (balancing ? tile.Width * 0.10f : 3f), tile.Y + 1f);
+            g.DrawString(index.ToString(), indexFont, indexBrush, tile.X + 3f, tile.Y + 1f);
 
-        // Deger
+        // Deger — alt kosedeki rozetlere yer birakacak sekilde ortalanir
         using (var inkBrush = new SolidBrush(ink))
             g.DrawString(FormatValue(value, state), valueFont, inkBrush,
                          new RectangleF(tile.X, tile.Y + tile.Height * 0.10f, tile.Width,
-                                        tile.Height * 0.72f), centered);
+                                        tile.Height * 0.68f), centered);
 
-        // Skala icindeki konum — renkten cok daha keskin ayirt eden ikinci kanal
-        if (state != CellState.Invalid) DrawMagnitudeBar(g, tile, value, ink);
+        if (balancing) DrawBalanceBadge(g, tile, markFont, ink);
 
         if (state != CellState.Invalid)
             DrawStatMarks(g, tile, mark, ink, markFont, state == CellState.Alarm);
@@ -194,6 +181,33 @@ public sealed class CellGridControl : Control
                 g.DrawPath(pen, path);
             DrawWarningBadge(g, tile);
         }
+    }
+
+    /// <summary>
+    /// Balans rozeti: sol alt kosede altin zemin uzerinde "B".
+    /// Kontur sart: altin renk, ramp'in sari-turuncu ortasinda dolguyla neredeyse
+    /// ayni tona dusup rozeti gorunmez yapiyor.
+    /// </summary>
+    private static void DrawBalanceBadge(Graphics g, RectangleF tile, Font font, Color ink)
+    {
+        float size = Math.Clamp(Math.Min(tile.Height * 0.32f, tile.Width * 0.28f), 12f, 22f);
+        var badge = new RectangleF(tile.X + 3f, tile.Bottom - size - 3f, size, size);
+
+        using (var brush = new SolidBrush(Heatmap.BalanceRing))
+        using (var outline = new Pen(ink, Math.Max(1.3f, size * 0.09f)))
+        using (var path = RoundedRect(badge, size * 0.28f))
+        {
+            g.FillPath(brush, path);
+            g.DrawPath(outline, path);
+        }
+
+        using var textBrush = new SolidBrush(Heatmap.InkOn(Heatmap.BalanceRing));
+        using var fmt = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+        };
+        g.DrawString("B", font, textBrush, badge, fmt);
     }
 
     /// <summary>
@@ -231,28 +245,6 @@ public sealed class CellGridControl : Control
             g.DrawString(sigma, markFont, brush, tile.Right - size.Width - 1f,
                          tile.Bottom - size.Height - tile.Height * 0.13f);
         }
-    }
-
-    private void DrawMagnitudeBar(Graphics g, RectangleF tile, double value, Color ink)
-    {
-        float inset = Math.Max(3f, tile.Width * 0.08f);
-        float h = Math.Clamp(tile.Height * 0.075f, 2.5f, 6f);
-        var track = new RectangleF(tile.X + inset, tile.Bottom - h - inset * 0.6f,
-                                   tile.Width - inset * 2f, h);
-        if (track.Width < 6f) return;
-
-        double t = ScaleHigh > ScaleLow
-            ? Math.Clamp((value - ScaleLow) / (ScaleHigh - ScaleLow), 0.0, 1.0)
-            : 0.0;
-
-        using (var trackBrush = new SolidBrush(Color.FromArgb(55, ink)))
-        using (var path = RoundedRect(track, h / 2f))
-            g.FillPath(trackBrush, path);
-
-        var filled = new RectangleF(track.X, track.Y, Math.Max(h, (float)(track.Width * t)), h);
-        using (var fillBrush = new SolidBrush(Color.FromArgb(205, ink)))
-        using (var path = RoundedRect(filled, h / 2f))
-            g.FillPath(fillBrush, path);
     }
 
     private static float WarningBadgeSize(RectangleF body)
@@ -325,9 +317,15 @@ public sealed class CellGridControl : Control
         using (var warn = new SolidBrush(Heatmap.WarningColor))
             g.DrawString(alarmText, font, warn, x1 + 19f, area.Y);
         using (var gold = new SolidBrush(Heatmap.BalanceRing))
+        using (var badgePath = RoundedRect(new RectangleF(x1 + 1f, area.Y + rowH + 1f, 13f, 13f), 4f))
         {
-            g.FillRectangle(gold, x1 + 3f, area.Y + rowH + 2f, 4f, 11f);
-            g.DrawString("sol şerit: balansta", font, gold, x1 + 19f, area.Y + rowH);
+            g.FillPath(gold, badgePath);
+            using (var badgeInk = new SolidBrush(Heatmap.InkOn(Heatmap.BalanceRing)))
+            using (var fmt = new StringFormat
+                   { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                g.DrawString("B", font, badgeInk,
+                             new RectangleF(x1 + 1f, area.Y + rowH + 1f, 13f, 13f), fmt);
+            g.DrawString("balansta", font, gold, x1 + 19f, area.Y + rowH);
         }
 
         // 2. sutun: istatistik isaretleri
