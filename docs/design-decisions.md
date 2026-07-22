@@ -123,6 +123,11 @@ Recorded so they are not rediscovered the hard way.
   feature is broken when it is not. Wait in a loop that calls `Application.DoEvents()`.
 - **Selecting a tab by index in a test breaks the moment a tab is inserted.** Select by
   reference.
+- **`ListView` is not double buffered** and `DoubleBuffered` is protected, so the flicker fix
+  needs a subclass. Feeding it live data made the register table visibly strobe. Two things
+  made it worse and are worth remembering separately: assigning a `SubItem.Text` invalidates
+  the item even when the text is unchanged, and the view was fed at the UI update rate rather
+  than the rate its data can actually change at.
 
 ## 6. Firmware observations
 
