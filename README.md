@@ -195,7 +195,9 @@ turları arasında işlenir.
   `GUI_DATAS.Cell_Temps[94] = GUI_DATAS.Cell_Temps[20]` yapıyor (`main.cpp:971`) ve `0x2A`
   cevabı bu diziden okunuyor (`main.cpp:1976`) — yani 94. hücre hep 20. hücrenin sıcaklığını
   gösterir. Sıcaklık sekmesinde dipnot olarak belirtilir. (Voltajlar etkilenmez.)
-- **SoC şu an 0.** Firmware `ESTIMATED_SoC`'u henüz hesaplamıyor.
+- **SoC.** Plan aşamasında firmware `ESTIMATED_SoC`'u hesaplamıyordu (sabit 0). Gerçek kartla
+  yapılan ilk denemede %73,7 okundu, yani artık hesaplanıyor — değerin doğruluğu firmware
+  tarafında ayrıca doğrulanmalı.
 - **UI cihaza yazmaz.** Eşik/config yazma arayüzü kaldırıldı; uygulama salt-okunur.
   Alt katmanda `SerialLink.WriteRegister` ve `PollWorker.EnqueueWrite` (test edilmiş olarak)
   duruyor, ileride gerekirse arayüz bunun üzerine eklenebilir.
