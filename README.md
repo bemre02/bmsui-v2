@@ -243,9 +243,14 @@ turları arasında işlenir.
   `GUI_DATAS.Cell_Temps[94] = GUI_DATAS.Cell_Temps[20]` yapıyor (`main.cpp:971`) ve `0x2A`
   cevabı bu diziden okunuyor (`main.cpp:1976`) — yani 94. hücre hep 20. hücrenin sıcaklığını
   gösterir. Sıcaklık sekmesinde dipnot olarak belirtilir. (Voltajlar etkilenmez.)
-- **SoC.** Plan aşamasında firmware `ESTIMATED_SoC`'u hesaplamıyordu (sabit 0). Gerçek kartla
-  yapılan ilk denemede %73,7 okundu, yani artık hesaplanıyor — değerin doğruluğu firmware
-  tarafında ayrıca doğrulanmalı.
+- **SoC.** Plan aşamasında firmware `ESTIMATED_SoC`'u hesaplamıyordu (sabit 0). Kartla yapılan
+  denemede sıfırdan farklı okundu, ancak o sırada firmware **simülasyon verisi** üretiyordu —
+  değerin gerçekten hesaplanıp hesaplanmadığı firmware tarafında doğrulanmalı.
+
+> **Kartla test ederken:** firmware simülasyon modundaysa ekrandaki hücre değerleri gerçek
+> hücreleri yansıtmaz. Protokol doğrulaması (CRC/zaman aşımı sayaçları, ölçek kontrolü) yine
+> geçerlidir — bunlar veriden bağımsızdır — ama dengesizlik, σ işaretleri ve sıcak hücre gibi
+> gözlemler ancak gerçek hücrelerle anlamlıdır.
 - **UI cihaza yazmaz.** Eşik/config yazma arayüzü kaldırıldı; uygulama salt-okunur.
   Alt katmanda `SerialLink.WriteRegister` ve `PollWorker.EnqueueWrite` (test edilmiş olarak)
   duruyor, ileride gerekirse arayüz bunun üzerine eklenebilir.
