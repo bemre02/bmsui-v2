@@ -27,13 +27,37 @@ public sealed class CsvLogger : IDisposable
     public string FilePath { get; }
     public long RowCount { get; private set; }
 
+    /// <summary>
+    /// Sütun adları takımın SD kart şablonuyla aynı: ALTSISTEM_SINYAL_tip
+    /// (`BMS_CELL42_VOLTAGE_f`, `BMS_MAX_CELL_TEMP_f`, `BMS_CONTRACTORS_u8` ...).
+    /// Böylece SD kart logları ile bu CSV aynı araçlarla işlenebiliyor.
+    ///
+    /// Birimler: voltaj V, sıcaklık °C, akım A, güç W, SoC %, FAULTS/CONTRACTORS bit maskesi,
+    /// balans bitmap'i IC başına 16 bit.
+    /// </summary>
     public static string BuildHeader()
     {
-        var sb = new StringBuilder("zaman");
-        for (int i = 0; i < HvProtocol.CellCount; i++) sb.Append($",v{i}");
-        for (int i = 0; i < HvProtocol.CellCount; i++) sb.Append($",t{i}");
-        for (int i = 0; i < HvProtocol.SegmentCount; i++) sb.Append($",bal{i}");
-        sb.Append(",pack_v,pack_a,guc_kw,soc,faults,outputs,min_v,maks_v,ort_v");
+        var sb = new StringBuilder("TIMESTAMP");
+        for (int i = 0; i < HvProtocol.CellCount; i++) sb.Append($",BMS_CELL{i}_VOLTAGE_f");
+        for (int i = 0; i < HvProtocol.CellCount; i++) sb.Append($",BMS_CELL{i}_TEMP_f");
+        for (int i = 0; i < HvProtocol.SegmentCount; i++) sb.Append($",BMS_BALANCE_IC{i}_u16");
+        sb.Append(",BMS_TOTAL_VOLTAGE_f")
+          .Append(",BMS_TOTAL_CELL_VOLTAGE_f")
+          .Append(",BMS_CURRENT_f")
+          .Append(",BMS_POWER_f")
+          .Append(",BMS_ESTIMATED_SoC_f")
+          .Append(",BMS_FAULTS_u16")
+          .Append(",BMS_CONTRACTORS_u8")
+          .Append(",BMS_MIN_CELL_VOLTAGE_f")
+          .Append(",BMS_MAX_CELL_VOLTAGE_f")
+          .Append(",BMS_AVG_CELL_VOLTAGE_f")
+          .Append(",BMS_CELL_VOLTAGE_STDDEV_f")
+          .Append(",BMS_MIN_CELL_NUMBER_u8")
+          .Append(",BMS_MAX_CELL_NUMBER_u8")
+          .Append(",BMS_MIN_CELL_TEMP_f")
+          .Append(",BMS_MAX_CELL_TEMP_f")
+          .Append(",BMS_AVG_CELL_TEMP_f")
+          .Append(",BMS_MAX_SLAVE_TEMP_f");
         return sb.ToString();
     }
 
@@ -49,16 +73,27 @@ public sealed class CsvLogger : IDisposable
         foreach (double t in s.CellTemps) sb.Append(',').Append(t.ToString("F2", ci));
         foreach (ushort b in s.BalanceBitmaps) sb.Append(',').Append(b.ToString(ci));
 
-        var stats = s.VoltageStats;
+        var volt = s.VoltageStats;
+        var temp = s.TempStats;
+        var analysis = s.VoltageAnalysis;
+
         sb.Append(',').Append(s.PackVoltage.ToString("F2", ci))
+          .Append(',').Append(s.TotalCellVoltage.ToString("F2", ci))
           .Append(',').Append(s.PackCurrent.ToString("F1", ci))
-          .Append(',').Append(s.PowerKw.ToString("F3", ci))
+          .Append(',').Append((s.PowerKw * 1000.0).ToString("F1", ci))
           .Append(',').Append(s.SocPercent.ToString("F2", ci))
           .Append(',').Append(s.Faults.ToString(ci))
           .Append(',').Append(s.Outputs.ToString(ci))
-          .Append(',').Append(stats.Min.ToString("F3", ci))
-          .Append(',').Append(stats.Max.ToString("F3", ci))
-          .Append(',').Append(stats.Avg.ToString("F3", ci));
+          .Append(',').Append(volt.Min.ToString("F3", ci))
+          .Append(',').Append(volt.Max.ToString("F3", ci))
+          .Append(',').Append(volt.Avg.ToString("F3", ci))
+          .Append(',').Append(analysis.StdDev.ToString("F5", ci))
+          .Append(',').Append(volt.MinIndex.ToString(ci))
+          .Append(',').Append(volt.MaxIndex.ToString(ci))
+          .Append(',').Append(temp.Min.ToString("F2", ci))
+          .Append(',').Append(temp.Max.ToString("F2", ci))
+          .Append(',').Append(temp.Avg.ToString("F2", ci))
+          .Append(',').Append(s.MaxSlaveTemp.ToString("F2", ci));
 
         _writer.WriteLine(sb.ToString());
         RowCount++;

@@ -328,12 +328,24 @@ public sealed class CellGridControl : Control
             g.DrawString("balansta", font, gold, x1 + 19f, area.Y + rowH);
         }
 
-        // 2. sutun: istatistik isaretleri
+        // 2. sutun: istatistik isaretleri + o anki degerler
         float x2 = x1 + colW;
         if (x2 + 60f > area.Right) return;
+
+        string meanText = _analysis.HasData
+            ? (IsVoltage ? $"ort {_analysis.Mean:F3} V" : $"ort {_analysis.Mean:F1} °C")
+            : "ort —";
+        // Paket geneli sigma; hucre isaretleri SEGMENT sigmasina gore verildigi icin
+        // etiket "paket" diyerek karisikligi onluyor
+        string sigmaText = _analysis.HasData
+            ? (IsVoltage ? $"paket σ {_analysis.StdDev * 1000:F1} mV"
+                         : $"paket σ {_analysis.StdDev:F2} °C")
+            : "paket σ —";
+
+        // Degerler aciklamalarin ARDINA yazilir: ayri sutun dar pencerede sigmiyordu
         using var ink = new SolidBrush(Heatmap.PrimaryInk);
-        g.DrawString("▲▼ genel ortalamanın üstü / altı", font, muted, x2, area.Y);
-        g.DrawString($"σ+ σ−  segment ortalamasından ±1σ dışı", font, ink, x2, area.Y + rowH);
+        g.DrawString($"▲▼ genel ort. üstü / altı  ·  {meanText}", font, muted, x2, area.Y);
+        g.DrawString($"σ+ σ−  segment ±1σ dışı  ·  {sigmaText}", font, ink, x2, area.Y + rowH);
     }
 
     private static GraphicsPath RoundedRect(RectangleF r, float radius)

@@ -12,11 +12,18 @@ public class CsvLoggerTests
     public void BuildHeader_HasAllColumns()
     {
         var cols = CsvLogger.BuildHeader().Split(',');
-        // zaman + 96 voltaj + 96 sicaklik + 6 balans + 9 paket alani
-        Assert.Equal(1 + 96 + 96 + 6 + 9, cols.Length);
-        Assert.Equal("zaman", cols[0]);
-        Assert.Equal("v0", cols[1]);
-        Assert.Equal("t95", cols[192]);
+        // TIMESTAMP + 96 voltaj + 96 sicaklik + 6 balans + 17 ozet alani
+        Assert.Equal(1 + 96 + 96 + 6 + 17, cols.Length);
+        Assert.Equal("TIMESTAMP", cols[0]);
+        // Takimin SD kart sablonuyla ayni isimlendirme
+        Assert.Equal("BMS_CELL0_VOLTAGE_f", cols[1]);
+        Assert.Equal("BMS_CELL95_VOLTAGE_f", cols[96]);
+        Assert.Equal("BMS_CELL0_TEMP_f", cols[97]);
+        Assert.Equal("BMS_CELL95_TEMP_f", cols[192]);
+        Assert.Equal("BMS_BALANCE_IC0_u16", cols[193]);
+        Assert.Contains("BMS_CELL_VOLTAGE_STDDEV_f", cols);
+        Assert.Contains("BMS_CONTRACTORS_u8", cols);
+        Assert.Contains("BMS_ESTIMATED_SoC_f", cols);
     }
 
     [Fact]
@@ -34,7 +41,7 @@ public class CsvLoggerTests
             }
             var lines = File.ReadAllLines(path);
             Assert.Equal(2, lines.Length);          // baslik + 1 satir
-            Assert.StartsWith("zaman,", lines[0]);
+            Assert.StartsWith("TIMESTAMP,", lines[0]);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
@@ -82,7 +89,7 @@ public class CsvLoggerTests
 
             var lines = File.ReadAllLines(path);
             Assert.Equal(3, lines.Length);              // 1 baslik + 2 satir
-            Assert.Single(lines, l => l.StartsWith("zaman,"));
+            Assert.Single(lines, l => l.StartsWith("TIMESTAMP,"));
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }

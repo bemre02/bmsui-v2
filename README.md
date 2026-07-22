@@ -95,6 +95,37 @@ kutudan çıktığı hâliyle UI alarmı BMS fault'uyla örtüşür. Ayarlar
 `%APPDATA%\BmsUi\settings.json` dosyasına kaydedilir, sonraki açılışta geri yüklenir.
 Bu değerlerin **hiçbiri cihaza gönderilmez.**
 
+## Log sekmesi (CSV)
+
+Dosya seçip **Kaydı başlat** deyin; varsayılan 1 Hz, 0.1–10 Hz arası ayarlanabilir. Mevcut
+dosyaya eklenir, başlık satırı tekrarlanmaz.
+
+Sütun adları takımın **SD kart şablonuyla aynı** isimlendirmeyi kullanır
+(`CAN Hattı ve SDCARD.xlsx` → SDCARD sayfası), böylece SD kart logları ile bu CSV aynı
+araçlarla işlenebilir:
+
+```
+TIMESTAMP,
+BMS_CELL0_VOLTAGE_f … BMS_CELL95_VOLTAGE_f,
+BMS_CELL0_TEMP_f … BMS_CELL95_TEMP_f,
+BMS_BALANCE_IC0_u16 … BMS_BALANCE_IC5_u16,
+BMS_TOTAL_VOLTAGE_f, BMS_TOTAL_CELL_VOLTAGE_f, BMS_CURRENT_f, BMS_POWER_f,
+BMS_ESTIMATED_SoC_f, BMS_FAULTS_u16, BMS_CONTRACTORS_u8,
+BMS_MIN_CELL_VOLTAGE_f, BMS_MAX_CELL_VOLTAGE_f, BMS_AVG_CELL_VOLTAGE_f,
+BMS_CELL_VOLTAGE_STDDEV_f, BMS_MIN_CELL_NUMBER_u8, BMS_MAX_CELL_NUMBER_u8,
+BMS_MIN_CELL_TEMP_f, BMS_MAX_CELL_TEMP_f, BMS_AVG_CELL_TEMP_f, BMS_MAX_SLAVE_TEMP_f
+```
+
+216 sütun. Birimler: voltaj **V**, sıcaklık **°C**, akım **A**, güç **W**, SoC **%**,
+`FAULTS`/`CONTRACTORS` bit maskesi, balans IC başına 16 bit.
+
+`BMS_TOTAL_VOLTAGE_f` paket voltajı register'ı (idx 7), `BMS_TOTAL_CELL_VOLTAGE_f` ise 96
+hücrenin firmware'deki toplamı (idx 11) — ikisi arasındaki küçük fark hücre başına yapılan
+kırpmadan gelir ve ölçeklemenin doğruluğunu kontrol etmeye yarar.
+
+Sayılar `InvariantCulture` ile yazılır (ondalık **nokta**), böylece dosya makineyle işlenirken
+TR yerel ayarındaki virgül CSV'yi bozmaz. Arayüzdeki gösterim ise yerel ayara uyar.
+
 ## Uygulama içi simülasyon (kart gerekmez)
 
 Bağlantı çubuğundaki **Simülasyon** kutusunu işaretleyip **Başlat**'a basın. Sürücü, sanal COM
