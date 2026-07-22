@@ -90,7 +90,7 @@ sol panelde mV cinsinden yazar.
 
 Voltaj ve sıcaklık için ayrı ayrı:
 
-- **Alarm alt/üst eşiği** — dışına çıkan hücre kalın kontur + uyarı ikonu alır
+- **Alarm alt/üst eşiği** — dışına çıkan hücre amber kontur + uyarı ikonu alır
 - **Renk skalası alt/üst ucu** — heatmap'in iki ucu. Paket dar bir aralıkta çalışırken
   (örn. 3.87-4.02 V) skalayı daraltmak hücreler arası farkı görünür kılar.
 
