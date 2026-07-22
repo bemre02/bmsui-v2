@@ -2,9 +2,9 @@ using BmsUi.Protocol;
 using Xunit;
 
 /// <summary>
-/// bms_simulator.py'nin URETTIGI gercek baytlar. Python tarafi ile C# ayristiricisinin
-/// (CRC, endianlik, isaretlilik) birebir uyustugunu kanitlar — protokolde iki dilin
-/// ayrisması en sinsi hata kaynagi oldugu icin cerceveler sabit olarak saklanir.
+/// Real bytes PRODUCED by bms_simulator.py. Proves the Python side and the C# parser agree
+/// exactly (CRC, endianness, signedness) — the two drifting apart is the sneakiest class of
+/// protocol bug, so the frames are pinned here as constants.
 /// </summary>
 public class SimulatorFrameTests
 {
@@ -58,8 +58,8 @@ public class SimulatorFrameTests
     {
         var maps = new ushort[HvProtocol.SegmentCount];
         Assert.True(FrameParser.TryParseBalance(FromHex(BalanceFrameHex), maps, out var err), err);
-        Assert.Equal(0x0005, maps[0]);        // segment 0: hucre 0 ve 2
-        Assert.Equal(0x8000, maps[5]);        // segment 5: hucre 15
+        Assert.Equal(0x0005, maps[0]);        // segment 0: cells 0 and 2
+        Assert.Equal(0x8000, maps[5]);        // segment 5: cell 15
     }
 
     [Fact]

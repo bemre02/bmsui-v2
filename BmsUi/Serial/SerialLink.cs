@@ -4,9 +4,10 @@ using BmsUi.Protocol;
 namespace BmsUi.Serial;
 
 /// <summary>
-/// Senkron komut-cevap katmani. TEK transaction kurali: komut tek Write ile yazilir,
-/// cevabin tamami okunmadan yeni komut gonderilmez (firmware paket UZUNLUGUNA gore
-/// ayristirir; birlesen iki komut yanlis yorumlanir — main.cpp:1958 switch (usblen)).
+/// Synchronous request/response layer. ONE transaction at a time: a command is written with
+/// a single Write call and no new command is sent until the previous response has been read
+/// in full. The firmware dispatches on packet LENGTH, so two commands merged into one USB
+/// packet would be misread (main.cpp:1958, switch (usblen)).
 /// </summary>
 public sealed class SerialLink : IDisposable
 {
@@ -30,7 +31,7 @@ public sealed class SerialLink : IDisposable
     public void Open() => _transport.Open();
     public void Close() => _transport.Close();
 
-    /// <summary>0x17 0x71 gonderir, ayni iki baytin echo'sunu bekler (CRC yok).</summary>
+    /// <summary>Sends 0x17 0x71 and expects the same two bytes echoed back (no CRC).</summary>
     public bool Ping()
     {
         var echo = Exchange(HvProtocol.PingCommand, HvProtocol.PingResponseLength);
@@ -39,14 +40,14 @@ public sealed class SerialLink : IDisposable
         bool ok = echo[0] == HvProtocol.PingCommand[0] && echo[1] == HvProtocol.PingCommand[1];
         if (!ok)
         {
-            LastError = "Ping echo uyusmadi";
+            LastError = "Ping echo did not match";
             Fail();
         }
         else ConsecutiveFailures = 0;
         return ok;
     }
 
-    /// <summary>Komutu yazar, tam uzunlukta cevabi okur, kimlik + CRC dogrular.</summary>
+    /// <summary>Writes the command, reads the full response, verifies id + CRC.</summary>
     public byte[]? Transact(byte[] command, int expectedLength, byte expectedId)
     {
         var frame = Exchange(command, expectedLength);
@@ -55,15 +56,15 @@ public sealed class SerialLink : IDisposable
         if (frame[expectedLength - 2] != expectedId)
         {
             IdMismatchCount++;
-            LastError = $"Kimlik uyusmazligi: beklenen 0x{expectedId:X2}, " +
-                        $"gelen 0x{frame[expectedLength - 2]:X2}";
+            LastError = $"Id mismatch: expected 0x{expectedId:X2}, " +
+                        $"got 0x{frame[expectedLength - 2]:X2}";
             Fail();
             return null;
         }
         if (Crc8.Compute(frame.AsSpan(0, expectedLength - 1)) != frame[expectedLength - 1])
         {
             CrcErrorCount++;
-            LastError = "CRC uyusmazligi";
+            LastError = "CRC mismatch";
             Fail();
             return null;
         }
@@ -75,7 +76,7 @@ public sealed class SerialLink : IDisposable
     {
         if (!HvProtocol.IsValidRegister(index))
             throw new ArgumentOutOfRangeException(nameof(index),
-                $"idx {index} okunamaz (>=50 veya 0x29/0x2A/0x2B ile golgeli)");
+                $"idx {index} is not readable (>=50 or shadowed by 0x29/0x2A/0x2B)");
 
         var frame = Transact(new[] { index }, HvProtocol.RegisterFrameLength, index);
         if (frame is null) return null;
@@ -86,7 +87,7 @@ public sealed class SerialLink : IDisposable
     {
         if (!HvProtocol.IsValidRegister(index))
             throw new ArgumentOutOfRangeException(nameof(index),
-                $"idx {index} yazilamaz (>=50 veya 0x29/0x2A/0x2B ile golgeli)");
+                $"idx {index} is not writable (>=50 or shadowed by 0x29/0x2A/0x2B)");
 
         var cmd = new[] { index, (byte)(value & 0xFF), (byte)(value >> 8) };
         var frame = Transact(cmd, HvProtocol.RegisterFrameLength, index);
@@ -94,12 +95,12 @@ public sealed class SerialLink : IDisposable
         return (ushort)(frame[0] | (frame[1] << 8));
     }
 
-    /// <summary>Yaz + tam N bayta kadar biriktir. Zarf dogrulamasi yapmaz.</summary>
+    /// <summary>Write, then accumulate until exactly N bytes. Does not validate the envelope.</summary>
     private byte[]? Exchange(byte[] command, int expectedLength)
     {
         try
         {
-            _transport.DiscardInBuffer();          // onceki timeout artiklari akisi zehirler
+            _transport.DiscardInBuffer();   // leftovers from a timed-out transaction poison the stream
             _transport.Write(command, 0, command.Length);
 
             int got = 0;
@@ -115,7 +116,7 @@ public sealed class SerialLink : IDisposable
             if (got < expectedLength)
             {
                 TimeoutCount++;
-                LastError = $"Eksik cevap: {got}/{expectedLength} bayt";
+                LastError = $"Short response: {got}/{expectedLength} bytes";
                 Fail();
                 return null;
             }
@@ -124,7 +125,7 @@ public sealed class SerialLink : IDisposable
         catch (TimeoutException)
         {
             TimeoutCount++;
-            LastError = "Zaman asimi";
+            LastError = "Timeout";
             Fail();
             return null;
         }

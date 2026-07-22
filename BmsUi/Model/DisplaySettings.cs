@@ -3,15 +3,15 @@ using System.Text.Json;
 namespace BmsUi.Model;
 
 /// <summary>
-/// Kullanicinin UI'dan ayarladigi gosterim esikleri. YALNIZCA gorunumu etkiler —
-/// bu degerlerin hicbiri BMS'e yazilmaz, cihazin kendi fault esikleri ayridir.
+/// Display thresholds the user sets from the UI. These affect the VIEW ONLY — none of
+/// them is ever written to the BMS; the device keeps its own fault thresholds.
 ///
-/// Varsayilanlar firmware esikleriyle ayni secildi (main.h:194-200), boylece kutudan
-/// ciktigi haliyle UI alarmi ile BMS fault'u ortusur; kullanici isterse daraltir.
+/// Defaults match the firmware thresholds (main.h:194-200) so that out of the box a UI
+/// alarm lines up with a BMS fault; the user can tighten them afterwards.
 /// </summary>
 public sealed class DisplaySettings
 {
-    // Firmware referanslari: CELL_UNDER/OVER_VOLTAGE_TRESHOLD, CELL_OVER_HEAT_TRESHOLD
+    // Firmware references: CELL_UNDER/OVER_VOLTAGE_TRESHOLD, CELL_OVER_HEAT_TRESHOLD
     public const double FirmwareVoltageLow = 2.50;
     public const double FirmwareVoltageHigh = 4.23;
     public const double FirmwareTempHigh = 80.0;
@@ -30,7 +30,7 @@ public sealed class DisplaySettings
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "BmsUi", "settings.json");
 
-    /// <summary>Bozuk/eksik dosyada varsayilanlara doner — UI asla acilmazlik etmez.</summary>
+    /// <summary>Falls back to defaults on a missing/corrupt file — the UI always opens.</summary>
     public static DisplaySettings Load(string? path = null)
     {
         path ??= FilePath;
@@ -55,7 +55,7 @@ public sealed class DisplaySettings
             new JsonSerializerOptions { WriteIndented = true }));
     }
 
-    /// <summary>Ters cevrilmis araliklari duzeltir (skala low >= high ise cizim bozulur).</summary>
+    /// <summary>Repairs inverted ranges (drawing breaks if scale low >= high).</summary>
     public DisplaySettings Normalized()
     {
         if (VoltageScaleHigh <= VoltageScaleLow) VoltageScaleHigh = VoltageScaleLow + 0.01;

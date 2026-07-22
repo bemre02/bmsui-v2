@@ -2,18 +2,18 @@ using System.Reflection;
 
 namespace BmsUi.Ui;
 
-/// <summary>Takim logosu — derlemeye gomulu, dosya kaybolsa da uygulama acilir.</summary>
+/// <summary>Team logo — embedded in the assembly, so a missing file never blocks startup.</summary>
 public static class Branding
 {
     private const string ResourceName = "BmsUi.Resources.team_logo.png";
 
-    /// <summary>Kaynak görsel — DOĞRUDAN bir kontrole atanmaz (aşağıya bakın).</summary>
+    /// <summary>Source image — never assigned to a control DIRECTLY (see below).</summary>
     public static Image? TeamLogo { get; } = LoadLogo();
 
     /// <summary>
-    /// Her çağrıda YENİ bir kopya döndürür. PictureBox kendisine atanan Image'i Dispose
-    /// ederken yok ediyor; paylaşılan tek statik görsel ikinci bir pencerede ölü kalıyor
-    /// (kırmızı X). Kontrollere hep kopya verilir.
+    /// Returns a NEW copy on every call. PictureBox disposes the Image assigned to it, so
+    /// a single shared static image would already be dead in a second window (red X).
+    /// Controls always get a copy.
     /// </summary>
     public static Image? CreateLogo() => TeamLogo is null ? null : (Image)TeamLogo.Clone();
 

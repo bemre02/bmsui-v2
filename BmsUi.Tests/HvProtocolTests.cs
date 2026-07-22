@@ -21,10 +21,10 @@ public class HvProtocolTests
     }
 
     [Theory]
-    [InlineData(0x29, true)]   // hucre voltaj komutu
-    [InlineData(0x2A, true)]   // hucre sicaklik komutu
-    [InlineData(0x2B, true)]   // balans komutu
-    [InlineData(0x08, false)]  // PACK_CURRENT — normal register
+    [InlineData(0x29, true)]   // cell voltage command
+    [InlineData(0x2A, true)]   // cell temperature command
+    [InlineData(0x2B, true)]   // balance command
+    [InlineData(0x08, false)]  // PACK_CURRENT — an ordinary register
     public void IsShadowedRegister_DetectsCommandCollisions(byte idx, bool expected)
         => Assert.Equal(expected, HvProtocol.IsShadowedRegister(idx));
 

@@ -5,13 +5,13 @@ using BmsUi.Protocol;
 namespace BmsUi.Serial;
 
 /// <summary>
-/// Uygulama ici sanal HV BMS cihazi — sanal COM portu / surucu gerektirmez.
-/// ISerialTransport'u gercek portla ayni arayuzden uygular, boylece SerialLink,
-/// CRC dogrulama, parser ve PollWorker AYNI kod yolundan gecer; yalnizca baytlarin
-/// kaynagi degisir.
+/// In-app virtual HV BMS device — needs no virtual COM port or driver.
+/// It implements ISerialTransport, the same interface a real port does, so SerialLink,
+/// CRC verification, the parser and PollWorker all run through the SAME code path;
+/// only the source of the bytes changes.
 ///
-/// Firmware davranisi taklit edilir: gelen paketin UZUNLUGUNA gore komut ayristirilir
-/// (main.cpp:1958 switch (usblen)) ve her cevap dogru CRC8 ile biter.
+/// Firmware behaviour is mirrored: commands are dispatched on packet LENGTH
+/// (main.cpp:1958, switch (usblen)) and every response ends with a correct CRC8.
 /// </summary>
 public sealed class SimulatedTransport : ISerialTransport
 {
@@ -33,8 +33,8 @@ public sealed class SimulatedTransport : ISerialTransport
             _volts[i] = 3.88 + _rng.NextDouble() * 0.06;
             _temps[i] = 24.0 + _rng.NextDouble() * 5.0;
         }
-        _volts[42] -= 0.12;                  // belirgin bir min hucre
-        _volts[7] += 0.09;                   // belirgin bir maks hucre
+        _volts[42] -= 0.12;                  // a clearly identifiable min cell
+        _volts[7] += 0.09;                   // a clearly identifiable max cell
         foreach (int hot in new[] { 7, 42, 83 }) _temps[hot] += 14.0;
 
         _registers[Reg.AllowedDisbalance] = 20;
@@ -62,7 +62,7 @@ public sealed class SimulatedTransport : ISerialTransport
             3 => WriteRegister(packet),
             _ => null,
         };
-        if (response is null) return;   // firmware gibi sessizce dusur
+        if (response is null) return;   // drop silently, like the firmware does
 
         lock (_lock)
             foreach (byte b in response) _pending.Enqueue(b);
@@ -73,7 +73,7 @@ public sealed class SimulatedTransport : ISerialTransport
         lock (_lock)
         {
             if (_pending.Count == 0)
-                throw new TimeoutException("Simulasyon: cevap yok");
+                throw new TimeoutException("Simulation: no response pending");
 
             int n = 0;
             while (n < count && _pending.Count > 0) buffer[offset + n++] = _pending.Dequeue();
@@ -81,19 +81,19 @@ public sealed class SimulatedTransport : ISerialTransport
         }
     }
 
-    // ---------------------------------------------------------------- cihaz modeli
+    // ---------------------------------------------------------------- device model
 
-    /// <summary>Zamanla surukelenen gercekci degerler uretir.</summary>
+    /// <summary>Produces realistic values that drift over time.</summary>
     private void Advance()
     {
         double t = _clock.Elapsed.TotalSeconds;
 
-        // Akim: yavas salinim, sarj/desarj (-120 .. +80 A)
+        // Current: slow oscillation, charge/discharge (-120 .. +80 A)
         double current = 80.0 * Math.Sin(t / 7.0) - 40.0 * Math.Sin(t / 3.0);
 
         for (int i = 0; i < HvProtocol.CellCount; i++)
         {
-            double sag = current * 0.0000012 * (i % 5 + 1);       // hucreye gore ic direnc
+            double sag = current * 0.0000012 * (i % 5 + 1);       // per-cell internal resistance
             _volts[i] += (_rng.NextDouble() - 0.5) * 0.003 - sag;
             _volts[i] = Math.Clamp(_volts[i], 3.30, 4.19);
 
@@ -101,15 +101,15 @@ public sealed class SimulatedTransport : ISerialTransport
             _temps[i] = Math.Clamp(_temps[i], 15.0, 78.0);
         }
 
-        // Firmware'deki 94 -> 20 remap'i (main.cpp:971) sadakatle taklit edilir
+        // Faithfully mirrors the firmware 94 -> 20 remap (main.cpp:971)
         _temps[94] = _temps[20];
 
-        // Fault demosu: ilk 12 sn temiz, sonra sirayla birkac fault
+        // Fault demo: clean for the first 12 s, then a few faults in rotation
         ushort faults = ((int)(t / 12.0) % 4) switch
         {
-            1 => 1 << 2,     // hucre asiri voltaj
-            2 => 1 << 6,     // hucre asiri sicaklik
-            3 => 1 << 13,    // precharge zaman asimi
+            1 => 1 << 2,     // cell overvoltage
+            2 => 1 << 6,     // cell overtemperature
+            3 => 1 << 13,    // precharge timeout
             _ => 0,
         };
 
@@ -145,7 +145,7 @@ public sealed class SimulatedTransport : ISerialTransport
         HvProtocol.CmdBalance => BalanceFrame(),
         _ => cmd < HvProtocol.MaxRegisterIndexExclusive
              ? RegisterFrame(cmd, _registers[cmd])
-             : null,                       // firmware: idx >= 50 cevapsiz
+             : null,                       // firmware: idx >= 50 gets no response
     };
 
     private byte[] WriteRegister(byte[] packet)
@@ -166,7 +166,7 @@ public sealed class SimulatedTransport : ISerialTransport
         return f;
     }
 
-    /// <summary>Ortalamanin ALLOWED_DISBALANCE kadar ustundeki hucreler balansta.</summary>
+    /// <summary>Cells more than ALLOWED_DISBALANCE above the mean are balancing.</summary>
     private byte[] BalanceFrame()
     {
         double threshold = _volts.Average() + Math.Max(1, (int)_registers[Reg.AllowedDisbalance]) / 1000.0;

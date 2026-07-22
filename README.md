@@ -1,21 +1,22 @@
-# BMS UI — Formula Student HV BMS Masaüstü Arayüzü
+# BMS UI — Formula Student HV BMS Desktop Interface
 
-Formula Student HV batarya master kartının (STM32G474 + FreeRTOS) USB CDC arayüzüne bağlanıp
-96 hücrenin voltaj/sıcaklığını, paket verilerini, fault durumunu, balans durumunu ve kontaktör
-çıkışlarını gösteren Windows uygulaması.
+Windows application that connects to the USB CDC interface of the HV battery master board
+(STM32G474 + FreeRTOS) and shows the voltage/temperature of all 96 cells plus pack data,
+fault state, balancing state and contactor outputs.
 
-`lvbmsgui`'nin (LV BMS) HV karşılığıdır: aynı stack (C# .NET 10 WinForms + `System.IO.Ports`),
-farklı protokol — LV ASCII satır gönderiyordu, HV **binary komut-cevap** konuşuyor.
+It is the HV counterpart of `lvbmsgui` (LV BMS): same stack (C# .NET 10 WinForms +
+`System.IO.Ports`), different protocol — LV pushed ASCII lines, HV speaks a **binary
+request/response** protocol.
 
-## Gereksinimler
+## Requirements
 
 - Windows
-- .NET 10 SDK (derlemek için) — çalıştırmak için .NET 10 Desktop Runtime yeterli
-- Donanımsız çalıştırmak için **hiçbir şey gerekmez**: uygulama içi simülasyon modu var
-  (aşağıya bakın). Harici `bms_simulator.py` yalnızca gerçek seri portu da sınamak
-  isterseniz gerekir (Python 3 + `pyserial` + com0com/VSPE ile `COM10 ↔ COM11`).
+- .NET 10 SDK to build — the .NET 10 Desktop Runtime is enough to run
+- Running without hardware needs **nothing extra**: there is a built-in simulation mode
+  (see below). The external `bms_simulator.py` is only needed if you also want to exercise
+  a real serial port (Python 3 + `pyserial` + com0com/VSPE with `COM10 ↔ COM11`).
 
-## Derleme ve çalıştırma
+## Build and run
 
 ```bash
 dotnet build -c Release
@@ -23,92 +24,91 @@ dotnet run --project BmsUi
 dotnet test
 ```
 
-## Kullanım
+## Usage
 
-1. Üstteki listeden COM portunu seçip **Başlat**'a basın (kart yoksa **Simülasyon** kutusunu
-   işaretleyip Başlat demeniz yeterli). Liste kart takılıp çıkarıldığında **kendiliğinden
-   tazelenir**; her port yanında türü yazar (`COM12 — USB`, `COM3 — Bluetooth`,
-   `COM5 — ST-Link`), böylece hangisinin BMS olduğu bakınca anlaşılır.
-2. Uygulama önce `0x17 0x71` ping'i gönderir; cihaz echo döndürmezse bağlanmaz
-   (yanlış porta bağlanıp saçma veri göstermeyi engeller).
-3. Bağlantı kurulunca poll worker başlar ve sol panel + sekmeler canlı güncellenir.
+1. Pick the COM port from the list and press **Start** (with no board, tick **Simulation**
+   and press Start). The list **refreshes itself** when a board is plugged or unplugged, and
+   each port is labelled with its kind (`COM12 — USB`, `COM3 — Bluetooth`, `COM5 — ST-Link`)
+   so it is obvious which one is the BMS.
+2. The app first sends the `0x17 0x71` ping; if the device does not echo it back, it refuses
+   to connect (this prevents attaching to the wrong port and showing nonsense).
+3. Once connected the poll worker starts and the left panel plus the tabs update live.
 
-**Sol panel** (her sekmede görünür), yukarıdan aşağıya:
+**Left panel** (visible on every tab), top to bottom:
 
-| Bölüm | İçerik |
+| Section | Contents |
 |---|---|
-| PAKET | Paket voltajı büyük punto + akım / güç / SoC / maks slave sıcaklığı kutuları |
-| HÜCRELER | Min-maks-ortalama voltaj ve sıcaklık, hangi hücre olduğu (`#42`), **fark (maks−min)** ve **standart sapma** mV cinsinden — dengesizlik için tek bakışta okunacak sayılar |
-| ÇIKIŞLAR | AIR / PRE / ERR durum hapları |
-| HATALAR | Yalnızca **aktif** hatalar listelenir; hiçbiri yoksa yeşil "Aktif hata yok" |
-| (alt şerit) | CRC / zaman aşımı / kimlik sayaçları, veri yaşı, bağlantı durumu |
+| PACK | Pack voltage in large type, plus current / power / SoC / max slave temperature tiles |
+| CELLS | Min-max-average voltage and temperature, which cell (`#42`), plus **spread (max-min)** and **standard deviation** in mV — the numbers to read at a glance for imbalance |
+| OUTPUTS | AIR / PRE / ERR status pills |
+| FAULTS | Only **active** faults are listed; a green "No active faults" when there are none |
+| (footer) | CRC / timeout / id counters, data age, link state |
 
-Hata paneli bilerek yalnızca aktif olanları gösterir: 15 satırlık pasif liste ekranın yarısını
-kaplayıp gerçek bir hatanın göze batmasını engelliyordu.
+The fault panel deliberately shows active faults only: a static 15-row list filled half the
+screen and made a real fault harder to spot.
 
-**Sekmeler:** Voltaj · Sıcaklık · Balans · Ayarlar · Log
+**Tabs:** Voltage · Temperature · Balance · Settings · Log
 
-> Uygulama BMS'e **hiçbir şey yazmaz** — yalnızca okur. Eşik/config yazma arayüzü bilinçli
-> olarak yok; Ayarlar sekmesi sadece arayüzün görünümünü değiştirir.
+> The application **never writes to the BMS** — it only reads. A threshold/config write
+> interface was deliberately left out; the Settings tab only changes how the UI looks.
 
-## Hücre görünümü
+## Cell rendering
 
-Her hücre **dikey bir pil silueti** olarak çizilir (gövde + üstte kutup); yazı boyutu pencere
-boyutuyla ölçeklenir. Gövde ve kutup tek bir path olarak kurulur, böylece alarm konturu iç
-birleşim çizgilerini değil siluetin dış hattını takip eder.
+Each cell is drawn as a **vertical battery silhouette** (body plus a terminal on top); the
+font size scales with the window. Body and terminal are built as a single path so the alarm
+outline follows the silhouette rather than the inner seam where they meet.
 
-| Gösterim | Anlamı |
+| Element | Meaning |
 |---|---|
-| Dolgu rengi | **Voltaj:** düşük = kırmızı, orta = sarı, yüksek = yeşil. **Sıcaklık:** düşük = koyu, yüksek = parlak amber (yüksek sıcaklık iyi bir şey olmadığı için yeşil kullanılmaz) |
-| Ortadaki sayı | Değerin kendisi — renk yaklaşık, sayı kesin |
-| Amber kontur + **⚠** (sağ üst) | Değer alarm eşiklerinin dışında |
-| **▲ / ▼** (sağ üst) | 96 hücrenin genel ortalamasının üstünde / altında |
-| **σ+ / σ−** (sağ alt) | Kendi segmentinin ortalamasından ±1σ'dan fazla sapmış |
-| **B** rozeti (sol alt) | Hücre balansta |
-| Gri dolgu + "—" | Hücre geçersiz/stale (0.00 V) |
-| Sol üstteki sayı | Lineer hücre indeksi — sol paneldeki min/maks indeksleriyle aynı numaralandırma |
+| Fill colour | **Voltage:** low = red, mid = yellow, high = green. **Temperature:** low = dark, high = bright amber (green is not used, since a high temperature is not a good thing) |
+| Number in the middle | The value itself — colour is approximate, the number is exact |
+| Amber outline + **⚠** (top right) | Value is outside the alarm thresholds |
+| **▲ / ▼** (top right) | Above / below the overall mean of the 96 cells |
+| **σ+ / σ−** (bottom right) | More than ±1σ from its own segment's mean |
+| **B** badge (bottom left) | Cell is balancing |
+| Grey fill + "—" | Cell is invalid/stale (0.00 V) |
+| Number at top left | Linear cell index — the same numbering as the min/max indices in the left panel |
 
-Renk tek başına hiçbir şey taşımaz: değer her hücrede yazılı ve eşik dışı hücreler ayrıca ikon
-alır. Bu, kırmızı-yeşil renk körlüğü (en yaygın tip) için de bilginin kaybolmadığı anlamına
-gelir. Balans rozetinin konturu şart: altın renk, ramp'in sarı-turuncu ortasında dolguyla aynı
-tona düşüp görünmez hâle geliyordu.
+Colour never carries information on its own: the value is printed on every cell and cells
+outside the thresholds also get an icon. That keeps the display readable for red-green colour
+blindness (the most common type). The balance badge needs its outline: gold drops to almost
+the same tone as the fill in the yellow-orange middle of the ramp and disappeared without it.
 
-**Alarm dolguyu değiştirmez.** Voltaj skalasının düşük ucu zaten kırmızı olduğu için kırmızı
-bir alarm dolgusu "düşük ama normal" hücreyle karışırdı; ayrıca eşik yanlış ayarlanınca bütün
-ızgara tek renge düşer ve hiçbir hücre diğerinden ayırt edilemez hâle gelirdi. Alarm bunun
-yerine **amber kontur + ⚠** ile gösterilir (ikonla aynı renk, altında koyu kılıf sayesinde
-amber dolgu üzerinde de görünür), dolgu değeri göstermeye devam eder.
+**An alarm does not change the fill.** The low end of the voltage scale is already red, so a
+red alarm fill would be confused with a "low but normal" cell; worse, a badly set threshold
+would flatten the whole grid to a single colour and no cell could be told apart from another.
+The alarm is shown as an **amber outline + ⚠** instead (same colour as the icon, with a dark
+casing underneath so it stays visible on an amber fill), and the fill keeps showing the value.
 
-Ekranda beklenmedik biçimde çok sayıda hücre kontur alıyorsa alarm eşiğiniz dar demektir —
-Ayarlar sekmesinden kontrol edin, "Varsayılana dön" firmware eşiklerine döndürür.
+If an unexpectedly large number of cells are outlined, the alarm threshold is too tight —
+check the Settings tab; "Restore defaults" puts the firmware thresholds back.
 
-**İki istatistik işareti neden ayrı?** ▲/▼ paketin bütününe göre konumu, σ± ise hücrenin kendi
-komşularından ayrışıp ayrışmadığını söyler. Bir segment tümüyle paket ortalamasının altındaysa,
-o segmentin en yüksek hücresi "σ+" ama yine de "▼" olabilir — ikisi farklı soruların cevabı.
-Segment σ'sı 16 hücrenin tamamı üzerinden (popülasyon) hesaplanır. Paket geneli standart sapma
-sol panelde mV cinsinden yazar.
+**Why are the two statistical marks separate?** ▲/▼ gives a cell's position relative to the
+whole pack, while σ± says whether it is drifting away from its own neighbours. If a segment
+sits entirely below the pack mean, that segment's highest cell can be "σ+" and still be "▼" —
+they answer different questions. Segment sigma is computed over all 16 cells of the segment
+(population). The pack-wide standard deviation is shown in the left panel in mV.
 
-## Ayarlar sekmesi (yalnızca görünüm)
+## Settings tab (view only)
 
-Voltaj ve sıcaklık için ayrı ayrı:
+Separately for voltage and temperature:
 
-- **Alarm alt/üst eşiği** — dışına çıkan hücre amber kontur + uyarı ikonu alır
-- **Renk skalası alt/üst ucu** — heatmap'in iki ucu. Paket dar bir aralıkta çalışırken
-  (örn. 3.87-4.02 V) skalayı daraltmak hücreler arası farkı görünür kılar.
+- **Alarm low/high threshold** — a cell outside them gets an amber outline and a warning icon
+- **Colour scale low/high end** — the two ends of the heatmap. When the pack runs in a narrow
+  band (e.g. 3.87-4.02 V), narrowing the scale makes the differences between cells visible.
 
-Varsayılanlar firmware eşikleriyle aynıdır (2.50 / 4.23 V, 80 °C — `main.h:194-200`), böylece
-kutudan çıktığı hâliyle UI alarmı BMS fault'uyla örtüşür. Ayarlar
-`%APPDATA%\BmsUi\settings.json` dosyasına kaydedilir, sonraki açılışta geri yüklenir.
-Bu değerlerin **hiçbiri cihaza gönderilmez.**
+Defaults match the firmware thresholds (2.50 / 4.23 V, 80 °C — `main.h:194-200`), so out of
+the box a UI alarm lines up with a BMS fault. Settings are stored in
+`%APPDATA%\BmsUi\settings.json` and restored on the next start. **None of these values is
+ever sent to the device.**
 
-## Log sekmesi (CSV)
+## Log tab (CSV)
 
-Dosya seçip **Kaydı başlat** deyin; varsayılan 1 Hz, 0.1–10 Hz arası ayarlanabilir. Mevcut
-dosyaya eklenir, başlık satırı tekrarlanmaz.
+Choose a file and press **Start recording**; the default rate is 1 Hz, adjustable between 0.1
+and 10 Hz. Rows are appended to an existing file and the header is not repeated.
 
-Sütun adları takımın **SD kart şablonuyla aynı** isimlendirmeyi kullanır
-(`CAN Hattı ve SDCARD.xlsx` → SDCARD sayfası), böylece SD kart logları ile bu CSV aynı
-araçlarla işlenebilir:
+Column names follow the team's **SD-card template** (`CAN Hattı ve SDCARD.xlsx` → SDCARD
+sheet), so the SD-card logs and this CSV can be processed with the same tooling:
 
 ```
 TIMESTAMP,
@@ -122,159 +122,160 @@ BMS_CELL_VOLTAGE_STDDEV_f, BMS_MIN_CELL_NUMBER_u8, BMS_MAX_CELL_NUMBER_u8,
 BMS_MIN_CELL_TEMP_f, BMS_MAX_CELL_TEMP_f, BMS_AVG_CELL_TEMP_f, BMS_MAX_SLAVE_TEMP_f
 ```
 
-216 sütun. Birimler: voltaj **V**, sıcaklık **°C**, akım **A**, güç **W**, SoC **%**,
-`FAULTS`/`CONTRACTORS` bit maskesi, balans IC başına 16 bit.
+216 columns. Units: voltage **V**, temperature **°C**, current **A**, power **W**, SoC **%**,
+`FAULTS`/`CONTRACTORS` bit masks, balance 16 bits per IC.
 
-`BMS_TOTAL_VOLTAGE_f` paket voltajı register'ı (idx 7), `BMS_TOTAL_CELL_VOLTAGE_f` ise 96
-hücrenin firmware'deki toplamı (idx 11) — ikisi arasındaki küçük fark hücre başına yapılan
-kırpmadan gelir ve ölçeklemenin doğruluğunu kontrol etmeye yarar.
+`BMS_TOTAL_VOLTAGE_f` is the pack voltage register (idx 7) while `BMS_TOTAL_CELL_VOLTAGE_f`
+is the firmware's sum of the 96 cells (idx 11) — the small difference between them comes from
+the per-cell truncation and is a handy way to sanity-check the scaling.
 
-Sayılar `InvariantCulture` ile yazılır (ondalık **nokta**), böylece dosya makineyle işlenirken
-TR yerel ayarındaki virgül CSV'yi bozmaz. Arayüzdeki gösterim ise yerel ayara uyar.
+Numbers are written with `InvariantCulture` (decimal **point**), so the file survives being
+processed under a Turkish locale where the comma would break it. The on-screen display still
+follows the local settings.
 
-## Uygulama içi simülasyon (kart gerekmez)
+## Built-in simulation (no board needed)
 
-Bağlantı çubuğundaki **Simülasyon** kutusunu işaretleyip **Başlat**'a basın. Sürücü, sanal COM
-portu veya Python gerekmez; istediğiniz an Durdur ile kapatırsınız.
+Tick **Simulation** in the connection bar and press **Start**. No driver, no virtual COM port
+and no Python; stop it whenever you like.
 
-Simülasyon, `ISerialTransport`'u gerçek portla aynı arayüzden uygulayan bir sanal cihazdır
-([SimulatedTransport.cs](BmsUi/Serial/SimulatedTransport.cs)). Veri, gerçek kartla **birebir
-aynı kod yolundan** akar — komut gönderimi, CRC8 doğrulaması, çerçeve ayrıştırma, poll
-worker — sadece baytların kaynağı değişir. Ürettikleri:
+The simulation is a virtual device implementing `ISerialTransport`, the same interface a real
+port implements ([SimulatedTransport.cs](BmsUi/Serial/SimulatedTransport.cs)). Data flows
+through **exactly the same code path** as a real board — command dispatch, CRC8 verification,
+frame parsing, poll worker — only the source of the bytes changes. What it produces:
 
-- 96 hücre voltajı 3.30-4.19 V arasında sürüklenir (bir hücre belirgin min, biri belirgin maks)
-- Sıcaklıklar 3 sıcak hücreyle birlikte sürüklenir; firmware'in `94 → 20` remap'i de taklit edilir
-- Akım -120 … +80 A arasında salınır, SoC ortalama voltajdan türetilir
-- 2. saniyede PRE, 5. saniyede AIR kapanır
-- Fault paneli boş kalmasın diye 12 saniyede bir sırayla hücre OV / hücre aşırı sıcaklık /
-  precharge zaman aşımı bitleri set edilir (ERR ışığı da onunla birlikte yanar)
+- 96 cell voltages drifting between 3.30-4.19 V (one clear min cell, one clear max cell)
+- Temperatures drifting with 3 hot cells; the firmware's `94 → 20` remap is mirrored too
+- Current oscillating between -120 and +80 A, SoC derived from the mean voltage
+- PRE closes at 2 s, AIR at 5 s
+- So the fault panel is not always empty, every 12 s it rotates through cell OV / cell
+  overtemperature / precharge timeout (the ERR light follows along)
 
-## Harici simülatör (gerçek seri portu da sınamak için)
+## External simulator (to exercise a real serial port)
 
 ```bash
 python bms_simulator.py --port COM11
 ```
 
-Sonra uygulamada `COM10`'u seçip Başlat deyin.
+Then select `COM10` in the application and press Start.
 
-| Bayrak | Ne yapar |
+| Flag | Effect |
 |---|---|
-| `--port COM11` | Simülatörün tutacağı port |
-| `--fault 2 --fault 13` | Verilen FAULTS bitlerini aktif eder |
-| `--chunked` | Cevapları 64 baytlık parçalara böler (host birleştirme mantığını sınar) |
-| `--latency 5` | Cevaba gecikme ekler (ms) |
-| `--verbose` | Gelen her paketi yazar |
+| `--port COM11` | Port the simulator holds |
+| `--fault 2 --fault 13` | Activates the given FAULTS bits |
+| `--chunked` | Splits responses into 64-byte chunks (exercises host reassembly) |
+| `--latency 5` | Adds a delay before responding (ms) |
+| `--verbose` | Prints every incoming packet |
 
-Simülatör firmware gibi davranır: gelen bayt öbeğinin **uzunluğuna** göre komutu ayrıştırır ve
-her cevaba doğru CRC8 ekler.
+The simulator behaves like the firmware: it dispatches on the **length** of the incoming byte
+burst and appends a correct CRC8 to every response.
 
-## Protokol özeti
+## Protocol summary
 
-| Gönder | Anlam | Cevap |
+| Send | Meaning | Response |
 |---|---|---|
-| `0x29` (1 bayt) | 96 hücre voltaj | 194 bayt: 96×uint16 LE, `[192]=0x29`, `[193]=CRC8` |
-| `0x2A` (1 bayt) | 96 hücre sıcaklık | 194 bayt: 96×**int16** LE (işaretli), `[192]=0x2A`, `[193]=CRC8` |
-| `0x2B` (1 bayt) | Balans durumu | 14 bayt: 6×uint16 LE dcc bitmap, `[12]=0x2B`, `[13]=CRC8` |
-| `idx` (idx<50, 1 bayt) | `MAINBUFFER[idx]` oku | 4 bayt: uint16 LE, `[2]=idx`, `[3]=CRC8` |
-| `0x17 0x71` (2 bayt) | Ping | 2 bayt echo (CRC yok) |
-| `idx,valLSB,valMSB` (3 bayt) | `MAINBUFFER[idx]=val` yaz | 4 bayt (oku ile aynı) |
+| `0x29` (1 byte) | 96 cell voltages | 194 bytes: 96×uint16 LE, `[192]=0x29`, `[193]=CRC8` |
+| `0x2A` (1 byte) | 96 cell temperatures | 194 bytes: 96×**int16** LE (signed), `[192]=0x2A`, `[193]=CRC8` |
+| `0x2B` (1 byte) | Balance state | 14 bytes: 6×uint16 LE dcc bitmap, `[12]=0x2B`, `[13]=CRC8` |
+| `idx` (idx<50, 1 byte) | Read `MAINBUFFER[idx]` | 4 bytes: uint16 LE, `[2]=idx`, `[3]=CRC8` |
+| `0x17 0x71` (2 bytes) | Ping | 2-byte echo (no CRC) |
+| `idx,valLSB,valMSB` (3 bytes) | Write `MAINBUFFER[idx]=val` | 4 bytes (same shape as a read) |
 
-- Hücre sırası: lineer `0..95 = segment*16 + cell` (6 segment × 16 hücre).
-- Voltaj `raw/100` V · sıcaklık `(int16)raw/100` °C · `PACK_CURRENT` işaretli `raw/10` A ·
+- Cell order: linear `0..95 = segment*16 + cell` (6 segments × 16 cells).
+- Voltage `raw/100` V · temperature `(int16)raw/100` °C · `PACK_CURRENT` signed `raw/10` A ·
   SoC `raw/10000`.
-- CRC8 = CRC-8/SMBUS (poly `0x07`, init `0x00`, refleksiyon yok), son bayt hariç tüm baytlar üzerinde.
+- CRC8 = CRC-8/SMBUS (poly `0x07`, init `0x00`, no reflection) over every byte except the last.
 
-### MAINBUFFER indeksleri
+### MAINBUFFER indices
 
-| idx | İsim | Ölçek |
+| idx | Name | Scale |
 |---|---|---|
-| 0 | FAULTS | bit maskesi |
+| 0 | FAULTS | bit mask |
 | 1 | OUTPUTS | bit0=AIR, bit1=PRE, bit2=ERR/SDC |
 | 7 | PACK_VOLTAGE | ×100 V |
-| 8 | PACK_CURRENT | işaretli ×10 A |
+| 8 | PACK_CURRENT | signed ×10 A |
 | 9 / 10 | MAX / MIN_CELL_VOLTAGE | ×100 V |
 | 11 | TOTAL_CELL_VOLTAGE | ×100 V |
-| 12 / 13 | MAX / MIN_CELL_TEMP | işaretli ×100 °C |
+| 12 / 13 | MAX / MIN_CELL_TEMP | signed ×100 °C |
 | 14 / 15 | AVG_CELL_VOLTAGE / _TEMP | ×100 |
-| 16 | MAX_SLAVE_TEMP | işaretli ×100 |
+| 16 | MAX_SLAVE_TEMP | signed ×100 |
 | 17 | ESTIMATED_SoC | ×10000 |
-| 30 | ALLOWED_DISBALANCE | mV (yazılabilir) |
-| 32 / 33 | PRECHARGE_PERCENTAGE / _TIMEOUT | yazılabilir |
+| 30 | ALLOWED_DISBALANCE | mV (writable) |
+| 32 / 33 | PRECHARGE_PERCENTAGE / _TIMEOUT | writable |
 
-### FAULTS bitleri
+### FAULTS bits
 
-0 PEC/haberleşme · 1 hücre UV · 2 hücre OV · 3 deşarj aşırı akım · 4 şarj aşırı akım ·
-5 hücre düşük sıcaklık · 6 hücre aşırı sıcaklık · 7 hücre kopuk kablo · 8 akım sensörü yok ·
-9 slave aşırı sıcaklık · 10 paket UV · 11 paket OV · 12 sıcaklık kopuk kablo ·
-13 precharge zaman aşımı · 14 ölçüm bayat
+0 PEC/comms · 1 cell UV · 2 cell OV · 3 discharge overcurrent · 4 charge overcurrent ·
+5 cell undertemperature · 6 cell overtemperature · 7 cell open wire · 8 no current sensor ·
+9 slave overtemperature · 10 pack UV · 11 pack OV · 12 temperature open wire ·
+13 precharge timeout · 14 measurement stale
 
-## Mimari
+## Architecture
 
 ```
-Form1  ──Invoke──  PollWorker (arka plan thread, 10 Hz)
+Form1  ──Invoke──  PollWorker (background thread, 10 Hz)
                         │
-                   SerialLink  (komut-cevap, CRC + kimlik doğrulama, hata sayaçları)
+                   SerialLink  (request/response, CRC + id verification, error counters)
                         │
                    ISerialTransport ──> SerialPortTransport (System.IO.Ports)
-                                   └──> FakeTransport / FakeDeviceTransport (testler)
+                                   ├──> SimulatedTransport  (in-app simulation)
+                                   └──> FakeTransport / FakeDeviceTransport (tests)
 ```
 
-Poll planı (10 Hz temel tick, ~97 transaction/s):
+Poll schedule (10 Hz base tick, ~97 transactions/s):
 
-| Veri | Hız |
+| Data | Rate |
 |---|---|
 | FAULTS, OUTPUTS, PACK_VOLTAGE, PACK_CURRENT | 10 Hz |
 | min/max/avg/total/slave/SoC (idx 9-17) | 5 Hz |
-| 96 voltaj + 96 sıcaklık | 5 Hz |
-| Balans | 2 Hz |
+| 96 voltages + 96 temperatures | 5 Hz |
+| Balance | 2 Hz |
 
-Portu yalnızca worker thread'i kullanır; UI'den gelen yazma istekleri kuyruğa alınıp poll
-turları arasında işlenir.
+Only the worker thread touches the port; write requests coming from the UI are queued and
+executed between poll rounds.
 
-## Bilinen kısıtlar
+## Known limitations
 
-- **Balans aç/kapa yapılamaz.** Firmware'de `BalanceEnable` MAINBUFFER'da değil, ayrı bir
-  `volatile` global. `0x2B` komutu yalnızca durum okur. UI'den kontrol istenirse firmware'e
-  yeni bir USB komutu eklenmeli.
-- **Güç (kW) host'ta hesaplanır** (`V × I`). Firmware'de `MAINBUFFER[41]=POWER` var ama
-  `41 = 0x29` voltaj komutuyla gölgelendiği için USB'den okunamaz. Aynı şekilde idx 42 ve 43
-  de okunamaz.
-- **Hücre 94'ün sıcaklığı kendi sensöründen gelmez.** Firmware
-  `GUI_DATAS.Cell_Temps[94] = GUI_DATAS.Cell_Temps[20]` yapıyor (`main.cpp:971`) ve `0x2A`
-  cevabı bu diziden okunuyor (`main.cpp:1976`) — yani 94. hücre hep 20. hücrenin sıcaklığını
-  gösterir. Sıcaklık sekmesinde dipnot olarak belirtilir. (Voltajlar etkilenmez.)
-- **SoC.** Plan aşamasında firmware `ESTIMATED_SoC`'u hesaplamıyordu (sabit 0). Kartla yapılan
-  denemede sıfırdan farklı okundu, ancak o sırada firmware **simülasyon verisi** üretiyordu —
-  değerin gerçekten hesaplanıp hesaplanmadığı firmware tarafında doğrulanmalı.
+- **Balancing cannot be switched on or off.** In the firmware `BalanceEnable` is not part of
+  MAINBUFFER but a separate `volatile` global, and command `0x2B` only reads state. Adding UI
+  control would require a new USB command in the firmware.
+- **Power (kW) is computed host-side** (`V × I`). The firmware has `MAINBUFFER[41]=POWER`, but
+  index 41 is shadowed by the `0x29` voltage command and cannot be read over USB. The same
+  applies to indices 42 and 43.
+- **Cell 94 mirrors cell 20.** The firmware does `cellTemps[94] = cellTemps[20]`
+  (`main.cpp:971`), so cell 94's temperature reads the same as cell 20's.
+- **SoC.** During planning the firmware did not compute `ESTIMATED_SoC` (it was fixed at 0).
+  A test with the board read back a non-zero value, but the firmware was producing
+  **simulated data** at the time — whether it is genuinely computed still needs to be
+  confirmed on the firmware side.
+- Sending `idx >= 50` gets **no response at all** from the device, which is why every
+  transaction has a timeout.
+- Commands are sent one at a time. Because the firmware dispatches on packet **length**, two
+  commands merged into one USB packet would be read as a ping — hence the
+  one-transaction-at-a-time rule.
 
-> **Kartla test ederken:** firmware simülasyon modundaysa ekrandaki hücre değerleri gerçek
-> hücreleri yansıtmaz. Protokol doğrulaması (CRC/zaman aşımı sayaçları, ölçek kontrolü) yine
-> geçerlidir — bunlar veriden bağımsızdır — ama dengesizlik, σ işaretleri ve sıcak hücre gibi
-> gözlemler ancak gerçek hücrelerle anlamlıdır.
-- **UI cihaza yazmaz.** Eşik/config yazma arayüzü kaldırıldı; uygulama salt-okunur.
-  Alt katmanda `SerialLink.WriteRegister` ve `PollWorker.EnqueueWrite` (test edilmiş olarak)
-  duruyor, ileride gerekirse arayüz bunun üzerine eklenebilir.
-- `idx >= 50` gönderilirse cihaz **hiç cevap vermez**; bu yüzden her transaction timeout'ludur.
-- Komutlar tek tek gönderilir. Firmware paketi **uzunluğa göre** ayrıştırdığı için iki komut
-  aynı USB paketinde birleşirse ping sanılır — bu yüzden aynı anda tek transaction kuralı vardır.
+> **When testing with the board:** if the firmware is in simulation mode, the cell values on
+> screen do not reflect real cells. Protocol verification (CRC/timeout counters, scaling
+> cross-check) still holds — that is independent of the data — but observations about
+> imbalance, sigma marks or hot cells are only meaningful with real cells.
 
-## Testler
+## Tests
 
-`dotnet test` — 134 test:
+`dotnet test` — 134 tests:
 
-- CRC-8/SMBUS bilinen vektörler (`"123456789"` → `0xF4`)
-- 194/14/4 baytlık çerçeve ayrıştırma, işaretli sıcaklık ve akım, bozuk CRC ve yanlış kimlik reddi
-- **Python ↔ C# çapraz doğrulama**: `bms_simulator.py`'nin ürettiği gerçek baytlar sabit
-  olarak saklanıp C# ayrıştırıcısıyla çözülür
-- Parçalı (chunked) gelen 194 baytın birleştirilmesi, zaman aşımı davranışı, hata sayaçları
-- PollWorker uçtan uca: sahte cihaz → SerialLink → parser → snapshot, bağlantı kaybı, register yazma
-- Uygulama içi simülasyon: ping, çerçevelerin gerçekçi aralıkta çözülmesi, `94 → 20` remap'i,
-  `idx ≥ 50` için cevapsızlık, PollWorker ile uçtan uca sürülmesi
-- UI duman testleri: ana pencere açılıp yerleşiyor mu, ızgara alarm/geçersiz/balans durumlarını
-  çiziyor mu, AIR/PRE/ERR ışıkları yanıp sönüyor mu
-- Renk: ramp'lerin monoton açıklığı (tek hue + monoton açıklık = CVD-güvenli), alarmın ramp
-  adımı olmadığı, kullanıcı eşiklerinin firmware varsayılanlarını geçersiz kıldığı
-- Görünüm ayarlarının diske yazılıp okunması, bozuk dosyada varsayılana dönmesi, ters
-  aralıkların düzeltilmesi
-- Çizim testleri PNG bırakır (`%TEMP%\bmsui_preview_*.png`) — ızgara, tüm pencere ve Ayarlar
-  sekmesi; görsel kontrol için açıp bakabilirsiniz
+- CRC-8/SMBUS against known vectors (`"123456789"` → `0xF4`)
+- 194/14/4-byte frame parsing, signed temperature and current, rejection of a corrupt CRC and
+  a wrong frame id
+- **Python ↔ C# cross-check**: real bytes produced by `bms_simulator.py` are pinned as
+  constants and decoded by the C# parser
+- Reassembly of a chunked 194-byte response, timeout behaviour, error counters
+- PollWorker end to end: fake device → SerialLink → parser → snapshot, link loss, register write
+- Statistics: population standard deviation, per-segment sigma, and the case where the segment
+  mark and the pack mean point in opposite directions
+- Colour: the ink chosen for every ramp step clears the 4.5:1 WCAG AA threshold; an alarm is
+  not a ramp step; user thresholds override the firmware defaults
+- Display settings round-trip to disk, fall back to defaults on a corrupt file, repair
+  inverted ranges
+- UI smoke tests: does the main window open and lay out, does the grid draw the alarm /
+  invalid / balancing states, is the logo still usable in a second window
+- Rendering tests leave PNGs behind (`%TEMP%\bmsui_preview_*.png`) — grid, whole window and
+  the Settings tab, handy for a visual check

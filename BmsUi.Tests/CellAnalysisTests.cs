@@ -28,9 +28,9 @@ public class CellAnalysisTests
     public void InvalidCells_AreExcludedFromMean()
     {
         var v = Uniform(3.90);
-        v[5] = 0.0;                       // eksik / stale hucre
+        v[5] = 0.0;                       // missing / stale cell
         var a = CellAnalysis.Compute(v, Valid);
-        Assert.Equal(3.90, a.Mean, 6);    // 0.0 ortalamayi asagi cekmemeli
+        Assert.Equal(3.90, a.Mean, 6);    // 0.0 must not drag the mean down
         Assert.Equal(95, a.ValidCount);
         Assert.Equal(CellMark.None, a.Marks[5]);
     }
@@ -42,7 +42,7 @@ public class CellAnalysisTests
     [Fact]
     public void StdDev_MatchesPopulationFormula()
     {
-        // Yarisi 3.90, yarisi 3.80 -> ortalama 3.85, populasyon sigma = 0.05
+        // Half at 3.90, half at 3.80 -> mean 3.85, population sigma = 0.05
         var v = new double[HvProtocol.CellCount];
         for (int i = 0; i < v.Length; i++) v[i] = i < 48 ? 3.90 : 3.80;
         var a = CellAnalysis.Compute(v, Valid);
@@ -66,7 +66,7 @@ public class CellAnalysisTests
     [Fact]
     public void SegmentSigma_IsComputedPerSegment_NotGlobally()
     {
-        // Segment 0 dagilimli, segment 1 tamamen sabit
+        // Segment 0 is spread out, segment 1 is completely flat
         var v = Uniform(3.90);
         for (int c = 0; c < 16; c++) v[c] = 3.80 + c * 0.01;
 
@@ -79,7 +79,7 @@ public class CellAnalysisTests
     [Fact]
     public void SegmentOutlier_MarksOnlyCellsBeyondOneSigma()
     {
-        // Segment 0: 15 hucre 3.90, 1 hucre 4.20 -> aykiri olan sadece o
+        // Segment 0: 15 cells at 3.90, one at 4.20 -> only that one is an outlier
         var v = Uniform(3.90);
         v[7] = 4.20;
         var a = CellAnalysis.Compute(v, Valid);
@@ -93,8 +93,8 @@ public class CellAnalysisTests
     [Fact]
     public void SegmentOutlier_AndGlobalMean_CanPointOppositeWays()
     {
-        // Segment 0 tumuyle dusuk; icindeki en yuksek hucre segment icinde "σ+"
-        // ama paket ortalamasinin hala ALTINDA -> iki isaret farkli yonu gosterir
+        // Segment 0 sits low overall; its highest cell is "σ+" within the segment yet still
+        // BELOW the pack mean -> the two marks point in opposite directions
         var v = Uniform(4.00);
         for (int c = 0; c < 16; c++) v[c] = 3.50;
         v[3] = 3.60;

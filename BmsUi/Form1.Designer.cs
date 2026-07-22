@@ -17,7 +17,7 @@ partial class Form1
 
     #region Windows Form Designer generated code
 
-    // Baglanti cubugu
+    // Connection bar
     private Panel connectionPanel;
     private Label appTitleLabel;
     private Label portLabel;
@@ -30,23 +30,23 @@ partial class Form1
     private PictureBox logoBox;
     private System.Windows.Forms.Timer reconnectTimer;
 
-    // Ana yerlesim
+    // Main layout
     private SplitContainer mainSplit;
     private DashboardPanel dashboard;
     private TabControl tabs;
 
-    // Sekmeler
+    // Tabs
     private TabPage voltageTab, temperatureTab, balanceTab, settingsTab, logTab;
     private CellGridControl voltageGrid, temperatureGrid, balanceGrid;
     private Label tempNoteLabel, balanceSummary;
 
-    // Ayarlar sekmesi (yalnizca gorunum — cihaza yazilmaz)
+    // Settings tab (view only — nothing is written to the device)
     private NumericUpDown vAlarmLowInput, vAlarmHighInput, vScaleLowInput, vScaleHighInput;
     private NumericUpDown tAlarmLowInput, tAlarmHighInput, tScaleLowInput, tScaleHighInput;
     private Button applySettingsButton, resetSettingsButton;
     private Label settingsStatusLabel;
 
-    // Log sekmesi
+    // Log tab
     private Button chooseFileButton;
     private TextBox logPathBox;
     private NumericUpDown logRateInput;
@@ -64,7 +64,7 @@ partial class Form1
             TextAlign = HorizontalAlignment.Right,
         };
 
-    /// <summary>"etiket : sayi girisi" satirlarindan olusan bir kutu kurar.</summary>
+    /// <summary>Builds a group box of "label : numeric input" rows.</summary>
     private static GroupBox BuildNumericGroup(string title,
                                               params (string Caption, NumericUpDown Input)[] rows)
     {
@@ -100,7 +100,7 @@ partial class Form1
     {
         components = new System.ComponentModel.Container();
 
-        // ---------------- baglanti cubugu ----------------
+        // ---------------- connection bar ----------------
         connectionPanel = new Panel { Dock = DockStyle.Top, Height = 52 };
 
         appTitleLabel = new Label
@@ -118,26 +118,26 @@ partial class Form1
             Location = new Point(152, 15),
             Width = 175,
         };
-        refreshButton = new Button { Text = "Yenile", Location = new Point(337, 14), Width = 80 };
+        refreshButton = new Button { Text = "Refresh", Location = new Point(337, 14), Width = 80 };
         refreshButton.Click += refreshButton_Click;
-        startButton = new Button { Text = "Başlat", Location = new Point(425, 14), Width = 90 };
+        startButton = new Button { Text = "Start", Location = new Point(425, 14), Width = 90 };
         startButton.Click += startButton_Click;
         statusLabel = new Label
         {
-            Text = "Bağlı değil",
+            Text = "Not connected",
             AutoSize = true,
             Location = new Point(529, 19),
         };
         simulationCheck = new CheckBox
         {
-            Text = "Simülasyon (kart gerekmez)",
+            Text = "Simulation (no board needed)",
             AutoSize = true,
             Location = new Point(700, 18),
         };
         simulationCheck.CheckedChanged += simulationCheck_CheckedChanged;
         autoReconnectCheck = new CheckBox
         {
-            Text = "Otomatik yeniden bağlan",
+            Text = "Auto-reconnect",
             AutoSize = true,
             Location = new Point(890, 18),
             Checked = true,
@@ -164,12 +164,12 @@ partial class Form1
         connectionPanel.Controls.Add(portLabel);
         connectionPanel.Controls.Add(appTitleLabel);
 
-        // ---------------- sol pano ----------------
+        // ---------------- left panel ----------------
         dashboard = new DashboardPanel { Dock = DockStyle.Fill };
 
-        // ---------------- sekmeler ----------------
+        // ---------------- tabs ----------------
         voltageGrid = new CellGridControl { Dock = DockStyle.Fill, Mode = CellGridMode.Voltage };
-        voltageTab = new TabPage("Voltaj");
+        voltageTab = new TabPage("Voltage");
         voltageTab.Controls.Add(voltageGrid);
 
         temperatureGrid = new CellGridControl
@@ -177,26 +177,26 @@ partial class Form1
             Dock = DockStyle.Fill,
             Mode = CellGridMode.Temperature,
         };
-        // Firmware GUI_DATAS.Cell_Temps[94] = Cell_Temps[20] yapiyor (main.cpp:971) ve USB'nin
-        // 0x2A cevabi bu diziden okunuyor -> hucre 94 kendi sensorunu degil 20'yi gosterir.
+        // The firmware does GUI_DATAS.Cell_Temps[94] = Cell_Temps[20] (main.cpp:971) and the
+        // USB 0x2A response is read from that array -> cell 94 reports cell 20, not its own.
         tempNoteLabel = new Label
         {
             Dock = DockStyle.Bottom,
             Height = 20,
-            Text = "Not: hücre 94 kendi sensörünü değil hücre 20'nin sıcaklığını gösterir " +
-                   "(firmware remap'i, main.cpp:971).",
+            Text = "Note: cell 94 reports cell 20's temperature, not its own sensor " +
+                   "(firmware remap, main.cpp:971).",
         };
-        temperatureTab = new TabPage("Sıcaklık");
+        temperatureTab = new TabPage("Temperature");
         temperatureTab.Controls.Add(temperatureGrid);
         temperatureTab.Controls.Add(tempNoteLabel);
 
         balanceGrid = new CellGridControl { Dock = DockStyle.Fill, Mode = CellGridMode.Voltage };
         balanceSummary = new Label { Dock = DockStyle.Bottom, Height = 42, Text = "—" };
-        balanceTab = new TabPage("Balans");
+        balanceTab = new TabPage("Balance");
         balanceTab.Controls.Add(balanceGrid);
         balanceTab.Controls.Add(balanceSummary);
 
-        // ---------------- ayarlar sekmesi (yalnizca gorunum) ----------------
+        // ---------------- settings tab (view only) ----------------
         vAlarmLowInput = NumInput(0.00m, 5.00m, 2, 0.05m);
         vAlarmHighInput = NumInput(0.00m, 5.00m, 2, 0.05m);
         vScaleLowInput = NumInput(0.00m, 5.00m, 2, 0.05m);
@@ -206,17 +206,17 @@ partial class Form1
         tScaleLowInput = NumInput(-50m, 150m, 1, 1m);
         tScaleHighInput = NumInput(-50m, 150m, 1, 1m);
 
-        var voltageSettings = BuildNumericGroup("Voltaj (V)",
-            ("Alarm alt eşiği", vAlarmLowInput),
-            ("Alarm üst eşiği", vAlarmHighInput),
-            ("Renk skalası alt ucu", vScaleLowInput),
-            ("Renk skalası üst ucu", vScaleHighInput));
+        var voltageSettings = BuildNumericGroup("Voltage (V)",
+            ("Alarm low threshold", vAlarmLowInput),
+            ("Alarm high threshold", vAlarmHighInput),
+            ("Colour scale low end", vScaleLowInput),
+            ("Colour scale high end", vScaleHighInput));
 
-        var tempSettings = BuildNumericGroup("Sıcaklık (°C)",
-            ("Alarm alt eşiği", tAlarmLowInput),
-            ("Alarm üst eşiği", tAlarmHighInput),
-            ("Renk skalası alt ucu", tScaleLowInput),
-            ("Renk skalası üst ucu", tScaleHighInput));
+        var tempSettings = BuildNumericGroup("Temperature (°C)",
+            ("Alarm low threshold", tAlarmLowInput),
+            ("Alarm high threshold", tAlarmHighInput),
+            ("Colour scale low end", tScaleLowInput),
+            ("Colour scale high end", tScaleHighInput));
 
         var settingsTable = new TableLayoutPanel
         {
@@ -231,9 +231,9 @@ partial class Form1
         settingsTable.Controls.Add(voltageSettings, 0, 0);
         settingsTable.Controls.Add(tempSettings, 1, 0);
 
-        applySettingsButton = new Button { Text = "Uygula ve kaydet", Width = 160, Height = 30 };
+        applySettingsButton = new Button { Text = "Apply and save", Width = 160, Height = 30 };
         applySettingsButton.Click += applySettingsButton_Click;
-        resetSettingsButton = new Button { Text = "Varsayılana dön", Width = 160, Height = 30 };
+        resetSettingsButton = new Button { Text = "Restore defaults", Width = 160, Height = 30 };
         resetSettingsButton.Click += resetSettingsButton_Click;
 
         var settingsButtons = new FlowLayoutPanel
@@ -258,23 +258,23 @@ partial class Form1
             Dock = DockStyle.Top,
             Height = 92,
             Padding = new Padding(12, 6, 12, 0),
-            Text = "Bu ayarlar YALNIZCA arayüzün görünümünü etkiler — BMS'e hiçbir şey " +
-                   "yazılmaz, cihazın kendi fault eşikleri değişmez.\n\n" +
-                   "Alarm eşikleri: dışına çıkan hücre kırmızı gösterilir ve üzerine uyarı " +
-                   "ikonu çizilir. Renk skalası: heatmap'in iki ucu; aralık daraldıkça " +
-                   "hücreler arası fark daha belirgin görünür.\n" +
-                   "Varsayılanlar firmware eşikleriyle aynı: 2.50 / 4.23 V ve 80 °C " +
+            Text = "These settings affect the VIEW ONLY — nothing is written to the BMS " +
+                   "and the device keeps its own fault thresholds.\n\n" +
+                   "Alarm thresholds: a cell outside them gets an amber outline and a " +
+                   "warning icon. Colour scale: the two ends of the heatmap; the narrower " +
+                   "the range, the more visible the differences between cells.\n" +
+                   "Defaults match the firmware thresholds: 2.50 / 4.23 V and 80 °C " +
                    "(main.h:194-200).",
         };
 
-        settingsTab = new TabPage("Ayarlar");
+        settingsTab = new TabPage("Settings");
         settingsTab.Controls.Add(settingsNote);
         settingsTab.Controls.Add(settingsStatusLabel);
         settingsTab.Controls.Add(settingsButtons);
         settingsTab.Controls.Add(settingsTable);
 
-        // ---------------- log sekmesi ----------------
-        chooseFileButton = new Button { Text = "Dosya seç...", Location = new Point(20, 20), Width = 120 };
+        // ---------------- log tab ----------------
+        chooseFileButton = new Button { Text = "Choose file...", Location = new Point(20, 20), Width = 120 };
         chooseFileButton.Click += chooseFileButton_Click;
         logPathBox = new TextBox { ReadOnly = true, Location = new Point(150, 21), Width = 460 };
         logRateInput = new NumericUpDown
@@ -289,7 +289,7 @@ partial class Form1
         };
         logEnabledCheck = new CheckBox
         {
-            Text = "Kaydı başlat",
+            Text = "Start recording",
             AutoSize = true,
             Location = new Point(260, 61),
         };
@@ -306,7 +306,7 @@ partial class Form1
         logTab = new TabPage("Log");
         logTab.Controls.Add(new Label
         {
-            Text = "Kayıt hızı (Hz):",
+            Text = "Record rate (Hz):",
             AutoSize = true,
             Location = new Point(20, 62),
         });
@@ -322,9 +322,9 @@ partial class Form1
             voltageTab, temperatureTab, balanceTab, settingsTab, logTab,
         });
 
-        // ---------------- ana bolme ----------------
-        // NOT: SplitterDistance BURADA atanmaz — kontrol henuz boyutlanmadigi icin
-        // sessizce kirpilir. Form1.OnLoad icinde, yerlesim oturduktan sonra atanir.
+        // ---------------- main split ----------------
+        // NOTE: SplitterDistance is NOT set here — the control has no size yet, so the
+        // value is silently clamped. It is applied in Form1.OnLoad, after layout settles.
         mainSplit = new SplitContainer
         {
             Dock = DockStyle.Fill,

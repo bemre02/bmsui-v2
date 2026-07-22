@@ -4,16 +4,16 @@ using BmsUi.Protocol;
 
 namespace BmsUi.Ui;
 
-/// <summary>Baglanti sayaclari — panelin alt seridinde gosterilir.</summary>
+/// <summary>Link counters — shown in the panel footer.</summary>
 public readonly record struct LinkHealth(int CrcErrors, int Timeouts, int IdMismatches);
 
 /// <summary>
-/// Sol pano: paket ozeti, hucre istatistikleri, cikislar, aktif hatalar ve baglanti
-/// sagligi. Onlarca Label/GroupBox yerine TEK owner-drawn kontrol — tipografi hiyerarsisi
-/// ve hizalama boylece tutarli kaliyor.
+/// Left panel: pack summary, cell statistics, outputs, active faults and link health.
+/// A SINGLE owner-drawn control instead of dozens of Labels/GroupBoxes, which keeps the
+/// typographic hierarchy and alignment consistent.
 ///
-/// Hata listesi YALNIZCA aktif olanlari gosterir; 15 satirlik pasif liste ekranin
-/// yarisini kaplayip gercek bir hatayi goze batmaz hale getiriyordu.
+/// The fault list shows ONLY active faults; a static 15-row list filled half the screen
+/// and made a real fault harder to notice.
 /// </summary>
 public sealed class DashboardPanel : Control
 {
@@ -66,14 +66,14 @@ public sealed class DashboardPanel : Control
         DrawLinkSection(g, pad, y, width, section, caption);
     }
 
-    // ------------------------------------------------------------------ bolumler
+    // ------------------------------------------------------------------ sections
 
     private float DrawPackSection(Graphics g, float x, float y, float w, Font section,
                                   Font hero, Font heroUnit, Font tileValue, Font caption)
     {
-        y = DrawSectionHeader(g, x, y, w, "PAKET", section);
+        y = DrawSectionHeader(g, x, y, w, "PACK", section);
 
-        // Hero: paket voltaji
+        // Hero: pack voltage
         string v = _snapshot is null ? "—" : _snapshot.PackVoltage.ToString("F2");
         using (var ink = new SolidBrush(Theme.Ink))
             g.DrawString(v, hero, ink, x - 3f, y - 6f);
@@ -81,10 +81,10 @@ public sealed class DashboardPanel : Control
         using (var muted = new SolidBrush(Theme.InkSecondary))
             g.DrawString("V", heroUnit, muted, x - 3f + heroSize.Width - 6f, y + 16f);
         using (var muted = new SolidBrush(Theme.InkMuted))
-            g.DrawString("paket voltajı", caption, muted, x, y + 40f);
+            g.DrawString("pack voltage", caption, muted, x, y + 40f);
         y += 62f;
 
-        // 2x2 stat kutulari
+        // 2x2 stat tiles
         float gap = 8f;
         float tileW = (w - gap) / 2f;
         const float tileH = 52f;
@@ -94,13 +94,13 @@ public sealed class DashboardPanel : Control
         string soc = _snapshot is null ? "—" : $"{_snapshot.SocPercent:F1}";
         string slave = _snapshot is null ? "—" : $"{_snapshot.MaxSlaveTemp:F1}";
 
-        DrawTile(g, new RectangleF(x, y, tileW, tileH), current, "A", "akım", tileValue, caption);
-        DrawTile(g, new RectangleF(x + tileW + gap, y, tileW, tileH), power, "kW", "güç",
+        DrawTile(g, new RectangleF(x, y, tileW, tileH), current, "A", "current", tileValue, caption);
+        DrawTile(g, new RectangleF(x + tileW + gap, y, tileW, tileH), power, "kW", "power",
                  tileValue, caption);
         y += tileH + gap;
         DrawTile(g, new RectangleF(x, y, tileW, tileH), soc, "%", "SoC", tileValue, caption);
         DrawTile(g, new RectangleF(x + tileW + gap, y, tileW, tileH), slave, "°C",
-                 "maks slave sıc.", tileValue, caption);
+                 "max slave temp", tileValue, caption);
 
         return y + tileH + 16f;
     }
@@ -108,33 +108,33 @@ public sealed class DashboardPanel : Control
     private float DrawCellSection(Graphics g, float x, float y, float w, Font section,
                                   Font label, Font value, Font caption)
     {
-        y = DrawSectionHeader(g, x, y, w, "HÜCRELER", section);
+        y = DrawSectionHeader(g, x, y, w, "CELLS", section);
 
         var volt = _snapshot?.VoltageStats ?? CellStat.None;
         var temp = _snapshot?.TempStats ?? CellStat.None;
 
-        y = DrawStatRow(g, x, y, w, "Min voltaj", volt.HasData ? $"{volt.Min:F3} V" : "—",
+        y = DrawStatRow(g, x, y, w, "Min voltage", volt.HasData ? $"{volt.Min:F3} V" : "—",
                         volt.HasData ? $"#{volt.MinIndex}" : null, label, value, caption);
-        y = DrawStatRow(g, x, y, w, "Maks voltaj", volt.HasData ? $"{volt.Max:F3} V" : "—",
+        y = DrawStatRow(g, x, y, w, "Max voltage", volt.HasData ? $"{volt.Max:F3} V" : "—",
                         volt.HasData ? $"#{volt.MaxIndex}" : null, label, value, caption);
-        y = DrawStatRow(g, x, y, w, "Ortalama", volt.HasData ? $"{volt.Avg:F3} V" : "—",
-                        volt.HasData ? $"{volt.ValidCount} hücre" : null, label, value, caption);
-        // Dengesizlik: BMS'te en cok bakilan tek sayi
-        y = DrawStatRow(g, x, y, w, "Fark (maks−min)",
+        y = DrawStatRow(g, x, y, w, "Average", volt.HasData ? $"{volt.Avg:F3} V" : "—",
+                        volt.HasData ? $"{volt.ValidCount} cells" : null, label, value, caption);
+        // Imbalance: the single number people look at most on a BMS
+        y = DrawStatRow(g, x, y, w, "Spread (max-min)",
                         volt.HasData ? $"{(volt.Max - volt.Min) * 1000:F0} mV" : "—", null,
                         label, value, caption);
 
         var analysis = _snapshot?.VoltageAnalysis;
-        y = DrawStatRow(g, x, y, w, "Std sapma",
+        y = DrawStatRow(g, x, y, w, "Std deviation",
                         analysis is { HasData: true } ? $"{analysis.StdDev * 1000:F1} mV" : "—",
                         null, label, value, caption);
 
         y += 4f;
-        y = DrawStatRow(g, x, y, w, "Min sıcaklık", temp.HasData ? $"{temp.Min:F1} °C" : "—",
+        y = DrawStatRow(g, x, y, w, "Min temperature", temp.HasData ? $"{temp.Min:F1} °C" : "—",
                         temp.HasData ? $"#{temp.MinIndex}" : null, label, value, caption);
-        y = DrawStatRow(g, x, y, w, "Maks sıcaklık", temp.HasData ? $"{temp.Max:F1} °C" : "—",
+        y = DrawStatRow(g, x, y, w, "Max temperature", temp.HasData ? $"{temp.Max:F1} °C" : "—",
                         temp.HasData ? $"#{temp.MaxIndex}" : null, label, value, caption);
-        y = DrawStatRow(g, x, y, w, "Ortalama", temp.HasData ? $"{temp.Avg:F1} °C" : "—", null,
+        y = DrawStatRow(g, x, y, w, "Average", temp.HasData ? $"{temp.Avg:F1} °C" : "—", null,
                         label, value, caption);
 
         return y + 12f;
@@ -143,7 +143,7 @@ public sealed class DashboardPanel : Control
     private float DrawOutputSection(Graphics g, float x, float y, float w, Font section,
                                     Font badge)
     {
-        y = DrawSectionHeader(g, x, y, w, "ÇIKIŞLAR", section);
+        y = DrawSectionHeader(g, x, y, w, "OUTPUTS", section);
 
         float pillW = (w - 16f) / 3f;
         DrawPill(g, new RectangleF(x, y, pillW, 30f), "AIR",
@@ -162,12 +162,12 @@ public sealed class DashboardPanel : Control
         ushort mask = _snapshot?.Faults ?? 0;
         var active = FaultBits.Decode(mask);
 
-        y = DrawSectionHeader(g, x, y, w, "HATALAR", section);
+        y = DrawSectionHeader(g, x, y, w, "FAULTS", section);
 
         if (_snapshot is null)
         {
             using var muted = new SolidBrush(Theme.InkMuted);
-            g.DrawString("veri yok", label, muted, x, y);
+            g.DrawString("no data", label, muted, x, y);
             return y + 26f;
         }
 
@@ -176,19 +176,19 @@ public sealed class DashboardPanel : Control
             using (var ok = new SolidBrush(Theme.Good))
             {
                 g.FillEllipse(ok, x, y + 3f, 10f, 10f);
-                g.DrawString("Aktif hata yok", label, ok, x + 16f, y);
+                g.DrawString("No active faults", label, ok, x + 16f, y);
             }
             return y + 26f;
         }
 
-        // Kalan yukseklige sigacak kadar goster, gerisini say
+        // Show as many as fit in the remaining height, count the rest
         float available = Height - y - 62f;
         int maxRows = Math.Max(1, (int)(available / 20f));
         int shown = Math.Min(active.Count, maxRows);
 
         using (var critical = new SolidBrush(Theme.Critical))
         {
-            g.DrawString($"{active.Count} aktif hata", badge, critical, x, y);
+            g.DrawString($"{active.Count} active fault(s)", badge, critical, x, y);
             y += 20f;
 
             for (int i = 0; i < shown; i++)
@@ -203,7 +203,7 @@ public sealed class DashboardPanel : Control
             }
 
             if (shown < active.Count)
-                g.DrawString($"+{active.Count - shown} daha", label, critical, x + 9f, y);
+                g.DrawString($"+{active.Count - shown} more", label, critical, x + 9f, y);
         }
 
         return y + 14f;
@@ -212,7 +212,7 @@ public sealed class DashboardPanel : Control
     private void DrawLinkSection(Graphics g, float x, float y, float w, Font section,
                                  Font caption)
     {
-        // Alt seride sabitle — ustteki bolumler buyudukce kaymasin
+        // Pin to the footer so it does not drift as the sections above grow
         float bottom = Height - 46f;
         y = Math.Max(y, bottom);
         if (y + 40f > Height) y = Height - 40f;
@@ -220,20 +220,20 @@ public sealed class DashboardPanel : Control
         using (var hairline = new Pen(Theme.Hairline))
             g.DrawLine(hairline, x, y - 8f, x + w, y - 8f);
 
-        string state = _connected ? "bağlı" : "bağlı değil";
+        string state = _connected ? "connected" : "not connected";
         double ageMs = _snapshot is null ? -1 : (DateTime.Now - _snapshot.RegistersAt).TotalMilliseconds;
         string age = ageMs < 0 ? "—" : $"{ageMs:F0} ms";
 
         using var muted = new SolidBrush(Theme.InkMuted);
-        g.DrawString($"CRC {_health.CrcErrors}   ·   zaman aşımı {_health.Timeouts}   ·   " +
-                     $"kimlik {_health.IdMismatches}", caption, muted, x, y);
+        g.DrawString($"CRC {_health.CrcErrors}   ·   timeout {_health.Timeouts}   ·   " +
+                     $"id {_health.IdMismatches}", caption, muted, x, y);
 
         var ageColor = ageMs > 1000 ? Theme.Warning : Theme.InkMuted;
         using var ageBrush = new SolidBrush(ageColor);
-        g.DrawString($"veri yaşı {age}   ·   {state}", caption, ageBrush, x, y + 16f);
+        g.DrawString($"data age {age}   ·   {state}", caption, ageBrush, x, y + 16f);
     }
 
-    // ------------------------------------------------------------------ parcalar
+    // ------------------------------------------------------------------ pieces
 
     private static float DrawSectionHeader(Graphics g, float x, float y, float w, string text,
                                            Font font)

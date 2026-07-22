@@ -47,10 +47,10 @@ public class FrameParserTests
     [Fact]
     public void TryParseCellVoltages_WrongId_Fails()
     {
-        // Sicaklik cercevesi voltaj olarak ayristirilirsa reddedilmeli
+        // A temperature frame parsed as voltage must be rejected
         var frame = FrameBuilder.CellFrame(Ramp(360), HvProtocol.CmdCellTemps);
         Assert.False(FrameParser.TryParseCellVoltages(frame, new double[96], out var err));
-        Assert.Contains("kimlik", err);
+        Assert.Contains("id mismatch", err!);
     }
 
     [Fact]
@@ -81,13 +81,13 @@ public class FrameParserTests
     {
         var frame = FrameBuilder.RegisterFrame(Reg.PackVoltage, 100);
         Assert.False(FrameParser.TryParseRegister(frame, Reg.PackCurrent, out _, out var err));
-        Assert.Contains("kimlik", err);
+        Assert.Contains("id mismatch", err!);
     }
 
     [Fact]
     public void TryParseRegister_NegativeCurrent_InterpretedBySigned()
     {
-        // -37.5 A -> raw -375 -> uint16 olarak 65161
+        // -37.5 A -> raw -375 -> 65161 as uint16
         var frame = FrameBuilder.RegisterFrame(Reg.PackCurrent, unchecked((ushort)-375));
         Assert.True(FrameParser.TryParseRegister(frame, Reg.PackCurrent, out var v, out _));
         Assert.Equal(-375, (short)v);

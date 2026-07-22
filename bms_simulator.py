@@ -1,10 +1,10 @@
-"""HV BMS USB CDC simulatoru.
+"""HV BMS USB CDC simulator.
 
-Sanal seri port ciftinde (VSPE / com0com, orn. COM10 <-> COM11) calisir:
-UI COM10'a baglanir, bu betik COM11'i tutar.
+Runs on one half of a virtual serial port pair (VSPE / com0com, e.g. COM10 <-> COM11):
+the UI connects to COM10 while this script holds COM11.
 
-Firmware davranisi taklit edilir: gelen bayt obeginin UZUNLUGUNA gore komut ayristirilir
-(main.cpp USB_Task -> switch (usblen)).
+Firmware behaviour is mirrored: commands are dispatched on the LENGTH of the incoming
+byte burst (main.cpp USB_Task -> switch (usblen)).
 """
 import argparse
 import math
@@ -26,7 +26,7 @@ CELLS_PER_SEGMENT = 16
 
 
 def crc8(data: bytes) -> int:
-    """CRC-8/SMBUS — firmware calculateCRC8() ile birebir."""
+    """CRC-8/SMBUS — identical to the firmware calculateCRC8()."""
     crc = 0x00
     for b in data:
         crc ^= b
@@ -36,17 +36,17 @@ def crc8(data: bytes) -> int:
 
 
 def to_u16(signed_value: int) -> int:
-    """Isaretli degeri uint16 bit desenine cevirir (firmware union davranisi)."""
+    """Converts a signed value to its uint16 bit pattern (what the firmware union does)."""
     return struct.unpack("<H", struct.pack("<h", int(signed_value)))[0]
 
 
 class PackState:
-    """Gercekci suruklenme ureten basit paket modeli."""
+    """Simple pack model that produces realistic drift."""
 
     def __init__(self, fault_bits=0):
         self.voltages = [random.uniform(3.85, 3.95) for _ in range(CELL_COUNT)]
         self.temps = [random.uniform(24.0, 30.0) for _ in range(CELL_COUNT)]
-        # birkac sicak hucre
+        # a few hot cells
         for i in (7, 42, 83):
             self.temps[i] += random.uniform(12.0, 18.0)
         self.current = 0.0
@@ -59,10 +59,10 @@ class PackState:
 
     def tick(self):
         t = time.time() - self.t0
-        # Akim: yavas salinim (-120 A .. +80 A), sarj/desarj
+        # Current: slow oscillation (-120 A .. +80 A), charge/discharge
         self.current = 80.0 * math.sin(t / 7.0) - 40.0 * math.sin(t / 3.0)
         for i in range(CELL_COUNT):
-            # ic direnc dususu + gurultu
+            # internal resistance drop + noise
             sag = self.current * 0.00012
             self.voltages[i] += random.uniform(-0.0015, 0.0015) - sag * 0.01
             self.voltages[i] = min(4.19, max(3.30, self.voltages[i]))
@@ -97,7 +97,7 @@ class PackState:
         r[17] = int(min(1.0, max(0.0, (avg_v - 3.2) / (4.15 - 3.2))) * 10000)
 
     def balance_bitmaps(self):
-        """Ortalamanin ALLOWED_DISBALANCE kadar ustundeki hucreler balansta."""
+        """Cells more than ALLOWED_DISBALANCE above the mean are balancing."""
         avg = sum(self.voltages) / CELL_COUNT
         threshold = avg + max(1, self.registers[30]) / 1000.0
         maps = []
@@ -137,7 +137,7 @@ def send(ser, data, chunked, latency_ms):
     if latency_ms:
         time.sleep(latency_ms / 1000.0)
     if chunked and len(data) > 8:
-        # CDC'nin parcali teslimini taklit et
+        # mimic the chunked delivery of CDC
         for off in range(0, len(data), 64):
             ser.write(data[off:off + 64])
             ser.flush()
@@ -148,14 +148,14 @@ def send(ser, data, chunked, latency_ms):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="HV BMS USB simulatoru")
+    ap = argparse.ArgumentParser(description="HV BMS USB simulator")
     ap.add_argument("--port", default="COM11")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--fault", type=int, action="append", default=[],
-                    help="FAULTS bit numarasi (birden fazla kez verilebilir)")
+                    help="FAULTS bit number (may be given more than once)")
     ap.add_argument("--chunked", action="store_true",
-                    help="cevaplari 64 baytlik parcalara bolerek gonder")
-    ap.add_argument("--latency", type=int, default=0, help="cevap gecikmesi (ms)")
+                    help="send responses split into 64-byte chunks")
+    ap.add_argument("--latency", type=int, default=0, help="response delay (ms)")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -166,17 +166,17 @@ def main():
     print("=" * 52)
     print("        HIGH VOLTAGE BMS USB SIMULATOR")
     print("=" * 52)
-    print(f"Port: {args.port} | Baud: {args.baud} | Fault maskesi: 0x{fault_mask:04X}")
+    print(f"Port: {args.port} | Baud: {args.baud} | Fault mask: 0x{fault_mask:04X}")
 
     try:
         ser = serial.Serial(args.port, args.baud, timeout=0.05)
     except Exception as e:
-        print(f"HATA: {args.port} acilamadi: {e}")
-        print("VSPE/com0com ile sanal port cifti olusturdugunuzdan emin olun.")
+        print(f"ERROR: could not open {args.port}: {e}")
+        print("Make sure a virtual port pair exists (VSPE / com0com).")
         return 1
 
     state = PackState(fault_mask)
-    print("UI baglantisi bekleniyor... (Ctrl+C ile durdurun)")
+    print("Waiting for the UI to connect... (Ctrl+C to stop)")
 
     try:
         while True:
@@ -184,7 +184,7 @@ def main():
             if not first:
                 state.tick()
                 continue
-            # Firmware bir USB paketini tek parca gorur; burst'u topla
+            # The firmware sees one USB packet as a whole; collect the burst
             time.sleep(0.002)
             extra = ser.read(ser.in_waiting or 0)
             packet = first + extra
@@ -206,23 +206,23 @@ def main():
                          args.chunked, args.latency)
                 else:
                     if args.verbose:
-                        print(f"idx {cmd} >= 50 — firmware gibi sessizce dusuruldu")
+                        print(f"idx {cmd} >= 50 — dropped silently, like the firmware")
             elif len(packet) == 2:
                 if packet == PING:
                     send(ser, PING, False, args.latency)
-                    print("Ping alindi -> echo gonderildi")
+                    print("Ping received -> echo sent")
             elif len(packet) == 3:
                 idx, lsb, msb = packet[0], packet[1], packet[2]
                 if idx < 50:
                     state.registers[idx] = (msb << 8) | lsb
                     send(ser, register_frame(idx, state.registers[idx]),
                          args.chunked, args.latency)
-                    print(f"YAZ MAINBUFFER[{idx}] = {state.registers[idx]}")
+                    print(f"WRITE MAINBUFFER[{idx}] = {state.registers[idx]}")
 
             if args.verbose:
-                print(f"paket={packet.hex(' ')} len={len(packet)}")
+                print(f"packet={packet.hex(' ')} len={len(packet)}")
     except KeyboardInterrupt:
-        print("\nSimulator durduruldu.")
+        print("\nSimulator stopped.")
     finally:
         ser.close()
     return 0

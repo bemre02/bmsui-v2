@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace BmsUi.Protocol;
 
-/// <summary>Cihazdan gelen sabit uzunluklu binary cerceveleri dogrular ve cozer.</summary>
+/// <summary>Validates and decodes the fixed-length binary frames sent by the device.</summary>
 public static class FrameParser
 {
     private static bool ValidateEnvelope(ReadOnlySpan<byte> frame, int expectedLength,
@@ -10,20 +10,20 @@ public static class FrameParser
     {
         if (frame.Length != expectedLength)
         {
-            error = $"Beklenen uzunluk {expectedLength}, gelen {frame.Length}";
+            error = $"Expected {expectedLength} bytes, got {frame.Length}";
             return false;
         }
         if (frame[expectedLength - 2] != expectedId)
         {
-            error = $"Cerceve kimlik uyusmazligi: beklenen 0x{expectedId:X2}, " +
-                    $"gelen 0x{frame[expectedLength - 2]:X2}";
+            error = $"Frame id mismatch: expected 0x{expectedId:X2}, " +
+                    $"got 0x{frame[expectedLength - 2]:X2}";
             return false;
         }
         byte crc = Crc8.Compute(frame[..(expectedLength - 1)]);
         if (crc != frame[expectedLength - 1])
         {
-            error = $"CRC uyusmazligi: hesaplanan 0x{crc:X2}, " +
-                    $"gelen 0x{frame[expectedLength - 1]:X2}";
+            error = $"CRC mismatch: computed 0x{crc:X2}, " +
+                    $"got 0x{frame[expectedLength - 1]:X2}";
             return false;
         }
         error = null;
@@ -45,7 +45,7 @@ public static class FrameParser
     {
         if (!ValidateEnvelope(frame, HvProtocol.CellFrameLength,
                               HvProtocol.CmdCellTemps, out error)) return false;
-        // ISARETLI: int16 olarak okunur, aksi halde negatif sicakliklar 655.xx gorunur
+        // SIGNED: must be read as int16, otherwise negative temperatures show up as 655.xx
         for (int i = 0; i < HvProtocol.CellCount; i++)
             target[i] = BinaryPrimitives.ReadInt16LittleEndian(frame.Slice(i * 2, 2)) / 100.0;
         return true;

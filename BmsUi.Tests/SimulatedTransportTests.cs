@@ -5,8 +5,8 @@ using BmsUi.Serial;
 using Xunit;
 
 /// <summary>
-/// Uygulama ici sanal cihaz. Gercek kartla ayni kod yolundan (SerialLink -> CRC -> parser)
-/// gectigi icin uctan uca surulup dogrulanir.
+/// The in-app virtual device. Because it goes through the same code path as a real board
+/// (SerialLink -> CRC -> parser), it is exercised end to end.
 /// </summary>
 public class SimulatedTransportTests
 {
@@ -49,7 +49,7 @@ public class SimulatedTransportTests
         var temps = new double[HvProtocol.CellCount];
         Assert.True(FrameParser.TryParseCellTemps(frame!, temps, out var err), err);
         Assert.All(temps, t => Assert.InRange(t, 15.0, 78.0));
-        // Firmware remap'i (main.cpp:971) sadakatle taklit ediliyor
+        // Faithfully mirrors the firmware remap (main.cpp:971)
         Assert.Equal(temps[20], temps[94], 2);
     }
 
@@ -62,7 +62,7 @@ public class SimulatedTransportTests
 
         Assert.NotNull(packV);
         Assert.NotNull(packA);
-        Assert.InRange(packV!.Value / 100.0, 300.0, 410.0);      // 96 hucre toplami
+        Assert.InRange(packV!.Value / 100.0, 300.0, 410.0);      // sum of 96 cells
         Assert.InRange((short)packA!.Value / 10.0, -130.0, 90.0);
     }
 
@@ -77,7 +77,7 @@ public class SimulatedTransportTests
     public void IndexAbove50_GetsNoResponse_LikeFirmware()
     {
         using var link = OpenLink(out _);
-        // Dogrudan Transact ile firmware'in sessiz dusurmesini dogrula
+        // Drive Transact directly to confirm the firmware drops it silently
         var frame = link.Transact(new byte[] { 60 }, HvProtocol.RegisterFrameLength, 60);
         Assert.Null(frame);
         Assert.Equal(1, link.TimeoutCount);

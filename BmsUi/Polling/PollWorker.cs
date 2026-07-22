@@ -7,8 +7,8 @@ using BmsUi.Serial;
 namespace BmsUi.Polling;
 
 /// <summary>
-/// Arka plan thread'i: porta erisen TEK yer. UI'dan gelen yazma istekleri kuyruga
-/// alinip poll turlari ARASINDA islenir; boylece iki thread ayni porta yazmaz.
+/// Background thread: the ONLY place that touches the port. Write requests coming from
+/// the UI are queued and executed BETWEEN poll rounds, so two threads never write at once.
 /// </summary>
 public sealed class PollWorker : IDisposable
 {
@@ -21,7 +21,7 @@ public sealed class PollWorker : IDisposable
 
     private Thread? _thread;
     private CancellationTokenSource? _cts;
-    private int _uiBusy;   // 0 = bosta, 1 = UI guncelleme devam ediyor
+    private int _uiBusy;   // 0 = idle, 1 = a UI update is in flight
 
     public const int MaxConsecutiveFailures = 5;
 
@@ -60,7 +60,7 @@ public sealed class PollWorker : IDisposable
         long tick = 0;
         var sw = Stopwatch.StartNew();
 
-        // Nadiren degisen ayarlar bir kez okunur (poll listesinde yer kaplamasin)
+        // Read the rarely-changing settings once (keeps them out of the poll rotation)
         foreach (byte idx in PollSchedule.ConfigRegisters)
         {
             if (token.IsCancellationRequested) return;
@@ -71,28 +71,29 @@ public sealed class PollWorker : IDisposable
         {
             long dueAt = (tick + 1) * PollSchedule.TickIntervalMs;
 
-            // 1) Bekleyen yazmalar (poll turundan ONCE, tek thread kurali korunur)
+            // 1) Pending writes (BEFORE the poll round, keeping the single-thread rule)
             while (_writes.TryDequeue(out var req))
             {
                 ushort? echo = _link.WriteRegister(req.Index, req.Value);
                 req.Callback(echo);
             }
 
-            // 2) Bu tick'in poll ogeleri
+            // 2) The poll items for this tick
             foreach (var item in PollSchedule.ItemsForTick(tick))
             {
                 if (token.IsCancellationRequested) break;
                 Poll(item);
             }
 
-            // 3) Baglanti sagligi
+            // 3) Link health
             if (_link.ConsecutiveFailures >= MaxConsecutiveFailures)
             {
                 ConnectionLost?.Invoke(_link.LastError ?? "Cihaz cevap vermiyor");
                 return;
             }
 
-            // 4) UI'ya yayin — onceki guncelleme bitmediyse bu turu atla (kuyruk sismesin)
+            // 4) Publish to the UI — skip this round if the previous update is still
+            //    running, otherwise the message queue piles up
             if (Interlocked.CompareExchange(ref _uiBusy, 1, 0) == 0)
             {
                 var handler = SnapshotReady;
@@ -100,14 +101,14 @@ public sealed class PollWorker : IDisposable
                 else handler(_state.Clone());
             }
 
-            // 5) Tick hizasi
+            // 5) Keep tick alignment
             int sleep = (int)(dueAt - sw.ElapsedMilliseconds);
             if (sleep > 0) token.WaitHandle.WaitOne(sleep);
             tick++;
         }
     }
 
-    /// <summary>UI, snapshot'i isledigini bildirir; sonraki tur yayin yapabilir.</summary>
+    /// <summary>The UI reports it is done with a snapshot so the next round may publish.</summary>
     public void NotifyUiIdle() => Interlocked.Exchange(ref _uiBusy, 0);
 
     private void Poll(PollItem item)

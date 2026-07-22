@@ -3,9 +3,9 @@ using BmsUi.Protocol;
 namespace BmsUi.Model;
 
 /// <summary>
-/// Paketin tam durumu. PollWorker her turda doldurup UI'ya kopyasini gonderir;
-/// o turda yenilenmeyen alanlar onceki degerleriyle tasinir, zaman damgalari veri
-/// yasini gosterir.
+/// Full pack state. PollWorker fills it every tick and hands a copy to the UI; fields
+/// that were not refreshed on that tick carry their previous values, and the timestamps
+/// tell the UI how old each group of data is.
 /// </summary>
 public sealed class BmsSnapshot
 {
@@ -43,8 +43,8 @@ public sealed class BmsSnapshot
     public double PackCurrent => (short)Registers[Reg.PackCurrent] / 10.0;
 
     /// <summary>
-    /// Guc host'ta hesaplanir: firmware'de MAINBUFFER[41]=POWER var ama 0x29 komutuyla
-    /// golgeli oldugu icin USB'den okunamaz (main.cpp:1960).
+    /// Power is computed host-side: the firmware has MAINBUFFER[41]=POWER, but index 41
+    /// is shadowed by the 0x29 command so it can never be read over USB (main.cpp:1960).
     /// </summary>
     public double PowerKw => PackVoltage * PackCurrent / 1000.0;
 
@@ -52,7 +52,7 @@ public sealed class BmsSnapshot
     public double TotalCellVoltage => Registers[Reg.TotalCellVoltage] / 100.0;
     public double MaxSlaveTemp => (short)Registers[Reg.MaxSlaveTemp] / 100.0;
 
-    // Firmware'in bildirdigi ozetler (host hesabiyla capraz kontrol icin)
+    // Summaries as reported by the firmware (for cross-checking the host-side maths)
     public double FwMaxCellVoltage => Registers[Reg.MaxCellVoltage] / 100.0;
     public double FwMinCellVoltage => Registers[Reg.MinCellVoltage] / 100.0;
     public double FwAvgCellVoltage => Registers[Reg.AvgCellVoltage] / 100.0;
@@ -63,10 +63,10 @@ public sealed class BmsSnapshot
     public CellStat VoltageStats => CellStats.Voltage(CellVoltages);
     public CellStat TempStats => CellStats.Temperature(CellTemps);
 
-    /// <summary>Genel ortalama, segment bazlı σ ve hücre işaretleri (96 eleman, ucuz).</summary>
+    /// <summary>Overall mean, per-segment sigma and cell marks (96 elements, cheap).</summary>
     public CellAnalysis VoltageAnalysis => CellAnalysis.Compute(CellVoltages, static v => v >= 0.5);
 
-    /// <summary>cell: 0..95 lineer indeks (segment*16 + hucre).</summary>
+    /// <summary>cell: linear index 0..95 (segment*16 + cell).</summary>
     public bool IsBalancing(int cell)
     {
         int seg = cell / HvProtocol.CellsPerSegment;

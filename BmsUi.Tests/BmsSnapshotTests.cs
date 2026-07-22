@@ -16,7 +16,7 @@ public class BmsSnapshotTests
     {
         var v = new double[96];
         for (int i = 0; i < 96; i++) v[i] = 3.90;
-        v[10] = 0.00;          // gecersiz / stale
+        v[10] = 0.00;          // invalid / stale
         v[20] = 4.15;          // max
         v[30] = 3.55;          // min
         var stat = CellStats.Voltage(v);
@@ -83,7 +83,7 @@ public class BmsSnapshotTests
     public void IsBalancing_ReadsBitFromSegmentBitmap()
     {
         var s = Make(x => x.SetBalance(new ushort[] { 0b0000_0000_0000_1000, 0, 0, 0, 0, 0 }));
-        Assert.True(s.IsBalancing(3));       // segment 0, hucre 3
+        Assert.True(s.IsBalancing(3));       // segment 0, cell 3
         Assert.False(s.IsBalancing(4));
     }
 

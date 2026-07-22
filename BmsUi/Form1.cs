@@ -12,7 +12,7 @@ public partial class Form1 : Form
     private SerialLink? _link;
     private PollWorker? _worker;
     private CsvLogger? _logger;
-    private string? _lastPortName;   // simulasyonda null — yeniden baglanma denenmez
+    private string? _lastPortName;   // null in simulation — no reconnect is attempted
     private DisplaySettings _settings = DisplaySettings.Load();
 
     public Form1()
@@ -31,21 +31,21 @@ public partial class Form1 : Form
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
-        // Yerlesim oturduktan SONRA: kontrol kucukken atanan SplitterDistance kirpiliyor
+        // AFTER layout settles: a SplitterDistance set while the control is tiny gets clamped
         int desired = Math.Min(360, Math.Max(mainSplit.Panel1MinSize, mainSplit.Width / 3));
         if (mainSplit.Width > desired + mainSplit.Panel2MinSize)
             mainSplit.SplitterDistance = desired;
     }
 
-    // ------------------------------------------------------------------ baglanti
+    // ------------------------------------------------------------------ connection
 
     private const int WM_DEVICECHANGE = 0x0219;
     private const int DBT_DEVNODES_CHANGED = 0x0007;
 
     /// <summary>
-    /// USB cihaz takılıp çıkarıldığında Windows bunu her üst düzey pencereye yayınlar.
-    /// Liste kendiliğinden tazelenmezse kullanıcı programı açtıktan sonra taktığı kartı
-    /// göremiyor — "Yenile"ye basmasını beklemek hataya davetiye.
+    /// Windows broadcasts this to every top-level window when a USB device is plugged or
+    /// unplugged. Without an automatic refresh a board plugged in after the app started
+    /// never appears — expecting the user to press "Refresh" invites mistakes.
     /// </summary>
     protected override void WndProc(ref Message m)
     {
@@ -76,7 +76,7 @@ public partial class Form1 : Form
         string? previous = SelectedPortName();
         var ports = SerialPortCatalog.List();
 
-        // Liste değişmediyse dokunma — seçim boşuna sıfırlanmasın
+        // Leave it alone when nothing changed, so the selection is not reset for nothing
         if (portCombo.Items.Count == ports.Count)
         {
             bool same = true;
@@ -95,10 +95,10 @@ public partial class Form1 : Form
 
     private void refreshButton_Click(object? sender, EventArgs e) => RefreshPorts();
 
-    /// <summary>Simülasyon işaretliyken COM seçimi anlamsızdır.</summary>
+    /// <summary>The COM selection is meaningless while simulation is ticked.</summary>
     private void simulationCheck_CheckedChanged(object? sender, EventArgs e)
     {
-        if (_link is not null) return;   // bağlıyken kilitli zaten
+        if (_link is not null) return;   // already locked while connected
         portCombo.Enabled = refreshButton.Enabled = !simulationCheck.Checked;
     }
 
@@ -112,16 +112,16 @@ public partial class Form1 : Form
 
         if (simulated)
         {
-            // Uygulama içi sanal cihaz: SerialLink'ten yukarısı gerçek kartla aynı kod yolu
+            // In-app virtual device: everything above SerialLink is the real-board path
             transport = new SimulatedTransport();
-            label = "Simülasyon";
+            label = "Simulation";
         }
         else
         {
             if (SelectedPortName() is not string portName)
             {
-                MessageBox.Show("Önce bir COM portu seçin " +
-                                "(ya da 'Simülasyon' kutusunu işaretleyin).", "Uyarı");
+                MessageBox.Show("Select a COM port first " +
+                                "(or tick the 'Simulation' box).", "Warning");
                 return;
             }
             transport = new SerialPortTransport(portName);
@@ -136,23 +136,24 @@ public partial class Form1 : Form
         catch (Exception ex)
         {
             link.Dispose();
-            SetStatus($"{label} açılamadı", Theme.Critical);
+            SetStatus($"Could not open {label}", Theme.Critical);
             if (!reconnectTimer.Enabled)
-                MessageBox.Show($"{label} açılamadı: {ex.Message}\n\n" +
-                                "Port takılı mı ve başka bir uygulama tarafından kullanılıyor mu?",
-                                "Hata");
+                MessageBox.Show($"Could not open {label}: {ex.Message}\n\n" +
+                                "Is the port plugged in, and is another application using it?",
+                                "Error");
             return;
         }
 
-        // Bağlı cihazın gerçekten HV BMS olduğunu ping ile doğrula
+        // Verify with a ping that the attached device really is the HV BMS
         if (!link.Ping())
         {
-            string reason = link.LastError ?? "cevap yok";
+            string reason = link.LastError ?? "no response";
             link.Dispose();
-            SetStatus($"{label}: cihaz cevap vermiyor", Theme.Critical);
+            SetStatus($"{label}: device not responding", Theme.Critical);
             if (!reconnectTimer.Enabled)
-                MessageBox.Show($"{label} açıldı ama cihaz ping'e cevap vermedi ({reason}).\n\n" +
-                                "Doğru port mu? Kart çalışıyor mu?", "Cihaz bulunamadı");
+                MessageBox.Show($"{label} opened but the device did not answer the ping " +
+                                $"({reason}).\n\nIs this the right port? Is the board running?",
+                                "Device not found");
             return;
         }
 
@@ -165,9 +166,9 @@ public partial class Form1 : Form
         _worker.ConnectionLost += OnConnectionLost;
         _worker.Start();
 
-        startButton.Text = "Durdur";
+        startButton.Text = "Stop";
         portCombo.Enabled = refreshButton.Enabled = simulationCheck.Enabled = false;
-        SetStatus(simulated ? "Simülasyon çalışıyor" : $"Bağlı: {label}", Theme.Good);
+        SetStatus(simulated ? "Simulation running" : $"Connected: {label}", Theme.Good);
     }
 
     private void Disconnect()
@@ -181,10 +182,10 @@ public partial class Form1 : Form
 
         logEnabledCheck.Checked = false;
 
-        startButton.Text = "Başlat";
+        startButton.Text = "Start";
         simulationCheck.Enabled = true;
         portCombo.Enabled = refreshButton.Enabled = !simulationCheck.Checked;
-        if (statusLabel.ForeColor != Theme.Critical) SetStatus("Bağlı değil", Theme.InkMuted);
+        if (statusLabel.ForeColor != Theme.Critical) SetStatus("Not connected", Theme.InkMuted);
         UpdateDashboard(null);
     }
 
@@ -199,7 +200,7 @@ public partial class Form1 : Form
         if (IsDisposed || !IsHandleCreated) return;
         BeginInvoke(() =>
         {
-            SetStatus($"Bağlantı kayıp: {reason}", Theme.Critical);
+            SetStatus($"Link lost: {reason}", Theme.Critical);
             Disconnect();
             if (autoReconnectCheck.Checked && _lastPortName is not null) reconnectTimer.Start();
         });
@@ -211,7 +212,7 @@ public partial class Form1 : Form
         if (_lastPortName is null ||
             !System.IO.Ports.SerialPort.GetPortNames().Contains(_lastPortName)) return;
 
-        SetStatus($"{_lastPortName} için yeniden deneniyor...", Theme.Warning);
+        SetStatus($"Retrying {_lastPortName}...", Theme.Warning);
         RefreshPorts();
         if (!SelectPort(_lastPortName)) return;
         startButton_Click(this, EventArgs.Empty);
@@ -226,7 +227,7 @@ public partial class Form1 : Form
         base.OnFormClosing(e);
     }
 
-    // ------------------------------------------------------------------ UI güncelleme
+    // ------------------------------------------------------------------ UI update
 
     private void OnSnapshotReady(BmsSnapshot snapshot)
     {
@@ -236,11 +237,11 @@ public partial class Form1 : Form
             BeginInvoke(() =>
             {
                 try { ApplySnapshot(snapshot); }
-                finally { _worker?.NotifyUiIdle(); }   // worker'a "hazırım" de
+                finally { _worker?.NotifyUiIdle(); }   // tell the worker we are ready again
             });
         }
-        catch (ObjectDisposedException) { /* form kapanıyor */ }
-        catch (InvalidOperationException) { /* handle yok edildi */ }
+        catch (ObjectDisposedException) { /* the form is closing */ }
+        catch (InvalidOperationException) { /* the handle is gone */ }
     }
 
     private void UpdateDashboard(BmsSnapshot? snapshot)
@@ -259,15 +260,16 @@ public partial class Form1 : Form
         UpdateDashboard(s);
 
         balanceSummary.Text =
-            $"Balanstaki hücre: {s.BalancingCount()}/96     " +
-            $"İzin verilen dengesizlik: {s.Registers[Reg.AllowedDisbalance]} mV     " +
-            $"(veri yaşı {(DateTime.Now - s.BalanceAt).TotalMilliseconds:F0} ms)\n" +
-            "Not: balans aç/kapa firmware'de ayrı bir global; UI'dan kontrol edilemez.";
+            $"Balancing cells: {s.BalancingCount()}/96     " +
+            $"Allowed disbalance: {s.Registers[Reg.AllowedDisbalance]} mV     " +
+            $"(data age {(DateTime.Now - s.BalanceAt).TotalMilliseconds:F0} ms)\n" +
+            "Note: balance enable is a separate global in the firmware and cannot be " +
+            "controlled from the UI.";
 
         _logger?.Log(s);
     }
 
-    // ------------------------------------------------------------------ görünüm ayarları
+    // ------------------------------------------------------------------ display settings
 
     private void LoadSettingsIntoInputs()
     {
@@ -302,18 +304,18 @@ public partial class Form1 : Form
             TempScaleHigh = (double)tScaleHighInput.Value,
         }.Normalized();
 
-        LoadSettingsIntoInputs();      // normalizasyon değiştirdiyse kutulara yansısın
+        LoadSettingsIntoInputs();      // reflect anything normalisation changed
         ApplySettingsToGrids();
 
         try
         {
             _settings.Save();
-            settingsStatusLabel.Text = "Kaydedildi — sonraki açılışta da geçerli.";
+            settingsStatusLabel.Text = "Saved — also applies on the next start.";
             settingsStatusLabel.ForeColor = Theme.Good;
         }
         catch (Exception ex)
         {
-            settingsStatusLabel.Text = $"Uygulandı ama diske yazılamadı: {ex.Message}";
+            settingsStatusLabel.Text = $"Applied but could not be written to disk: {ex.Message}";
             settingsStatusLabel.ForeColor = Theme.Warning;
         }
     }
@@ -323,7 +325,7 @@ public partial class Form1 : Form
         _settings = new DisplaySettings();
         LoadSettingsIntoInputs();
         ApplySettingsToGrids();
-        settingsStatusLabel.Text = "Firmware eşiklerine dönüldü (2.50 / 4.23 V, 80 °C).";
+        settingsStatusLabel.Text = "Restored the firmware thresholds (2.50 / 4.23 V, 80 °C).";
         settingsStatusLabel.ForeColor = Theme.InkSecondary;
     }
 
@@ -333,9 +335,9 @@ public partial class Form1 : Form
     {
         using var dialog = new SaveFileDialog
         {
-            Filter = "CSV dosyası (*.csv)|*.csv",
+            Filter = "CSV file (*.csv)|*.csv",
             FileName = $"bmsui_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
-            OverwritePrompt = false,   // mevcut dosyaya ekleme yapılır
+            OverwritePrompt = false,   // we append to an existing file
         };
         if (dialog.ShowDialog(this) == DialogResult.OK) logPathBox.Text = dialog.FileName;
     }
@@ -346,7 +348,7 @@ public partial class Form1 : Form
         {
             if (string.IsNullOrWhiteSpace(logPathBox.Text))
             {
-                MessageBox.Show("Önce bir dosya seçin.", "Uyarı");
+                MessageBox.Show("Choose a file first.", "Warning");
                 logEnabledCheck.Checked = false;
                 return;
             }
@@ -354,27 +356,27 @@ public partial class Form1 : Form
             {
                 var interval = TimeSpan.FromSeconds(1.0 / (double)logRateInput.Value);
                 _logger = new CsvLogger(logPathBox.Text, interval);
-                logStatusLabel.Text = "Kayıt sürüyor...";
+                logStatusLabel.Text = "Recording...";
                 logStatusLabel.ForeColor = Theme.Good;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Dosya açılamadı: {ex.Message}", "Hata");
+                MessageBox.Show($"Could not open the file: {ex.Message}", "Error");
                 logEnabledCheck.Checked = false;
             }
         }
         else
         {
-            logStatusLabel.Text = _logger is null ? "" : $"Kayıt durdu ({_logger.RowCount} satır)";
+            logStatusLabel.Text = _logger is null ? "" : $"Recording stopped ({_logger.RowCount} rows)";
             logStatusLabel.ForeColor = Theme.InkMuted;
             _logger?.Dispose();
             _logger = null;
         }
     }
 
-    // ------------------------------------------------------------------ test erişimi
+    // ------------------------------------------------------------------ test access
 
-    // Testler UI veri yolunu gerçek kontroller üzerinden sürebilsin diye dar erişim.
+    // A narrow surface so tests can drive the UI data path through the real controls.
     internal CheckBox SimulationCheckBox => simulationCheck;
     internal Button StartStopButton => startButton;
     internal Label ConnectionStatusLabel => statusLabel;
@@ -382,7 +384,7 @@ public partial class Form1 : Form
     internal DashboardPanel Dashboard => dashboard;
     internal PictureBox LogoBox => logoBox;
 
-    // ------------------------------------------------------------------ tema
+    // ------------------------------------------------------------------ theme
 
     private void ApplyTheme(Control root)
     {
@@ -407,7 +409,7 @@ public partial class Form1 : Form
                 root.ForeColor = Theme.InkSecondary;
                 break;
             case DashboardPanel or CellGridControl:
-                return;                      // kendi çizimini yapar, temaya dokunma
+                return;                      // draws itself; leave the theme alone
             default:
                 root.ForeColor = Theme.InkSecondary;
                 break;

@@ -2,7 +2,7 @@ using System.IO.Ports;
 
 namespace BmsUi.Serial;
 
-/// <summary>System.IO.Ports.SerialPort sarmalayicisi. ReadLine() KULLANILMAZ.</summary>
+/// <summary>Wraps System.IO.Ports.SerialPort. ReadLine() is never used.</summary>
 public sealed class SerialPortTransport : ISerialTransport
 {
     private readonly SerialPort _port;
@@ -14,7 +14,7 @@ public sealed class SerialPortTransport : ISerialTransport
         {
             ReadTimeout = readTimeoutMs,
             WriteTimeout = writeTimeoutMs,
-            DtrEnable = true,       // CDC cihazlar genelde DTR bekler
+            DtrEnable = true,       // CDC devices usually expect DTR
             RtsEnable = true,
         };
     }
@@ -29,7 +29,7 @@ public sealed class SerialPortTransport : ISerialTransport
 
     public void Dispose()
     {
-        try { Close(); } catch { /* port zaten kopmus olabilir */ }
+        try { Close(); } catch { /* the port may already be gone */ }
         _port.Dispose();
     }
 }

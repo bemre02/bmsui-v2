@@ -4,7 +4,7 @@ using Xunit;
 public class SerialPortCatalogTests
 {
     [Theory]
-    [InlineData(@"\Device\USBSER000", "USB")]       // HV BMS kartinin CDC portu
+    [InlineData(@"\Device\USBSER000", "USB")]       // the HV BMS board CDC port
     [InlineData(@"\Device\BthModem1", "Bluetooth")]
     [InlineData(@"\Device\VCP0", "ST-Link")]
     [InlineData(@"\Device\Silabser0", "CP210x")]
@@ -28,7 +28,7 @@ public class SerialPortCatalogTests
     [Fact]
     public void PortNumber_SortsNumerically_NotAlphabetically()
     {
-        // Metin siralamasi COM12'yi COM3'ten once koyar — kullaniciya karisik gorunur
+        // Text sorting would put COM12 before COM3, which looks wrong to the user
         var sorted = new[] { "COM12", "COM3", "COM9", "COM1" }
             .OrderBy(SerialPortCatalog.PortNumber)
             .ToArray();

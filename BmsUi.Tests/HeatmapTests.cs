@@ -6,15 +6,15 @@ public class HeatmapTests
     [Fact]
     public void VoltageRamp_RunsRedToYellowToGreen()
     {
-        // BMS okumasi: dusuk = kirmizi, orta = sari, yuksek = yesil
+        // BMS reading: low = red, mid = yellow, high = green
         var ramp = Heatmap.VoltageRamp;
         var low = ramp[0];
         var mid = ramp[ramp.Length / 2];
         var high = ramp[^1];
 
-        Assert.True(low.R > low.G && low.R > low.B, "dusuk uc kirmizi degil");
-        Assert.True(mid.R > 150 && mid.G > 130 && mid.B < 100, "orta sari degil");
-        Assert.True(high.G > high.R && high.G > high.B, "yuksek uc yesil degil");
+        Assert.True(low.R > low.G && low.R > low.B, "low end is not red");
+        Assert.True(mid.R > 150 && mid.G > 130 && mid.B < 100, "middle is not yellow");
+        Assert.True(high.G > high.R && high.G > high.B, "high end is not green");
     }
 
     [Fact]
@@ -23,7 +23,7 @@ public class HeatmapTests
         var ramp = Heatmap.VoltageRamp;
         var low = Heatmap.Sequential(3.25, 3.20, 4.15, ramp);
         var high = Heatmap.Sequential(4.10, 3.20, 4.15, ramp);
-        Assert.True(high.G - high.R > low.G - low.R, "yuksek deger daha yesil degil");
+        Assert.True(high.G - high.R > low.G - low.R, "higher value is not greener");
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class HeatmapTests
         var ramp = Heatmap.TemperatureRamp;
         for (int i = 1; i < ramp.Length; i++)
             Assert.True(Luminance(ramp[i]) > Luminance(ramp[i - 1]),
-                        $"adim {i} bir oncekinden acik degil");
+                        $"step {i} is not lighter than the previous one");
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class HeatmapTests
     }
 
     [Theory]
-    [InlineData(0.00, CellState.Invalid)]   // eksik / stale hucre
+    [InlineData(0.00, CellState.Invalid)]   // missing / stale cell
     [InlineData(2.40, CellState.Alarm)]     // esigin altinda
     [InlineData(4.30, CellState.Alarm)]     // esigin ustunde
     [InlineData(3.85, CellState.Normal)]
@@ -86,8 +86,8 @@ public class HeatmapTests
     [Fact]
     public void Fill_AlarmKeepsRampColor_SoGridStaysReadable()
     {
-        // Alarm dolguyu ele gecirseydi, esik yanlis ayarlaninca tum izgara tek renge
-        // duser ve hicbir hucre digerinden ayirt edilemezdi
+        // If an alarm took over the fill, a badly set threshold would flatten the whole grid
+        // to one colour and no cell could be told apart from another
         var alarmFill = Heatmap.Fill(CellState.Alarm, 4.30, 3.20, 4.15, Heatmap.VoltageRamp);
         var normalFill = Heatmap.Fill(CellState.Normal, 4.30, 3.20, 4.15, Heatmap.VoltageRamp);
         Assert.Equal(normalFill, alarmFill);
@@ -97,7 +97,7 @@ public class HeatmapTests
     [Fact]
     public void Fill_LowAlarmAndHighAlarm_AreDistinguishable()
     {
-        // Ikisi de alarm ama biri kirmizi ucta biri yesil ucta olmali
+        // Both are alarms, but one must land at the red end and the other at the green end
         var low = Heatmap.Fill(CellState.Alarm, 2.00, 3.20, 4.15, Heatmap.VoltageRamp);
         var high = Heatmap.Fill(CellState.Alarm, 4.50, 3.20, 4.15, Heatmap.VoltageRamp);
         Assert.NotEqual(low, high);
@@ -111,19 +111,19 @@ public class HeatmapTests
     [Fact]
     public void InkOn_PicksReadableContrast()
     {
-        // Koyu kirmizi dolgu -> beyaz yazi
+        // Dark red fill -> white text
         Assert.Equal(Color.White, Heatmap.InkOn(Heatmap.VoltageRamp[0]));
-        // Parlak sari dolgu -> koyu yazi (beyaz okunmaz)
+        // Bright yellow fill -> dark text (white would be unreadable)
         Assert.Equal(Heatmap.DarkInk, Heatmap.InkOn(Heatmap.FromHex(0xEAB308)));
-        // Acik krem dolgu -> koyu yazi
+        // Light cream fill -> dark text
         Assert.Equal(Heatmap.DarkInk, Heatmap.InkOn(Heatmap.TemperatureRamp[^1]));
     }
 
     [Fact]
     public void InkOn_GreenEnd_UsesDarkInk()
     {
-        // Regresyon: doygun yesil algisal parlaklik formulunde esigin altina dusup
-        // beyaz yazi aliyordu; gercek kontrast koyu yazidan yana (8.6'ya karsi 2.3)
+        // Regression: saturated green fell below the perceived-brightness threshold and got
+        // white text, while real contrast favours dark ink (8.6 versus 2.3)
         Assert.Equal(Heatmap.DarkInk, Heatmap.InkOn(Heatmap.VoltageRamp[^1]));
     }
 
@@ -143,7 +143,7 @@ public class HeatmapTests
     [Fact]
     public void InkOn_ChosenInkAlwaysClears4_5To1()
     {
-        // Secilen murekkep her ramp adiminda okunabilir olmali (WCAG AA metin esigi)
+        // The chosen ink must stay readable on every ramp step (WCAG AA text threshold)
         foreach (var fill in Heatmap.VoltageRamp.Concat(Heatmap.TemperatureRamp))
         {
             var ink = Heatmap.InkOn(fill);

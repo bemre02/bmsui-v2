@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Product>BMS UI</Product>
     <AssemblyTitle>BMS UI</AssemblyTitle>
-    <Description>Formula Student HV BMS masaüstü arayüzü</Description>
+    <Description>Formula Student HV BMS desktop interface</Description>
   </PropertyGroup>
 
   <ItemGroup>

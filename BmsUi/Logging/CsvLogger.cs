@@ -6,8 +6,8 @@ using BmsUi.Protocol;
 namespace BmsUi.Logging;
 
 /// <summary>
-/// Snapshot'lari CSV'ye yazar. Sayilar InvariantCulture ile yazilir — TR yerel ayarinda
-/// virgul ondalik ayraci CSV'yi bozardi.
+/// Writes snapshots to CSV. Numbers use InvariantCulture — under a Turkish locale the
+/// comma decimal separator would break the file.
 /// </summary>
 public sealed class CsvLogger : IDisposable
 {
@@ -28,12 +28,12 @@ public sealed class CsvLogger : IDisposable
     public long RowCount { get; private set; }
 
     /// <summary>
-    /// Sütun adları takımın SD kart şablonuyla aynı: ALTSISTEM_SINYAL_tip
-    /// (`BMS_CELL42_VOLTAGE_f`, `BMS_MAX_CELL_TEMP_f`, `BMS_CONTRACTORS_u8` ...).
-    /// Böylece SD kart logları ile bu CSV aynı araçlarla işlenebiliyor.
+    /// Column names follow the team's SD-card template: SUBSYSTEM_SIGNAL_type
+    /// (`BMS_CELL42_VOLTAGE_f`, `BMS_MAX_CELL_TEMP_f`, `BMS_CONTRACTORS_u8`, ...), so the
+    /// SD-card logs and this CSV can be processed by the same tooling.
     ///
-    /// Birimler: voltaj V, sıcaklık °C, akım A, güç W, SoC %, FAULTS/CONTRACTORS bit maskesi,
-    /// balans bitmap'i IC başına 16 bit.
+    /// Units: voltage V, temperature °C, current A, power W, SoC %, FAULTS/CONTRACTORS bit
+    /// masks, balance bitmap 16 bits per IC.
     /// </summary>
     public static string BuildHeader()
     {

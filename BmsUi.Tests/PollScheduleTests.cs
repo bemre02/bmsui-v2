@@ -44,13 +44,13 @@ public class PollScheduleTests
     public void RegisterLists_ContainNoShadowedIndices()
     {
         foreach (byte idx in PollSchedule.FastRegisters.Concat(PollSchedule.SummaryRegisters))
-            Assert.True(HvProtocol.IsValidRegister(idx), $"idx {idx} gecersiz");
+            Assert.True(HvProtocol.IsValidRegister(idx), $"idx {idx} is invalid");
     }
 
     [Fact]
     public void TransactionsPerSecond_MatchesDesignBudget()
     {
-        // 1 saniye = 10 tick; tasarim butcesi ~97 transaction/s
+        // 1 second = 10 ticks; the design budget is ~97 transactions/s
         int total = 0;
         for (long t = 0; t < 10; t++)
             foreach (var item in PollSchedule.ItemsForTick(t))

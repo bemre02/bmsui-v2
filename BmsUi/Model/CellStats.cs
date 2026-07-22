@@ -9,10 +9,10 @@ public readonly record struct CellStat(
 
 public static class CellStats
 {
-    /// <summary>Voltaj: 0.5 V altindaki hucreler eksik/stale kabul edilip disarida birakilir.</summary>
+    /// <summary>Voltage: cells below 0.5 V count as missing/stale and are excluded.</summary>
     public static CellStat Voltage(double[] values) => Compute(values, static v => v >= 0.5);
 
-    /// <summary>Sicaklik: -50..150 C disi degerler sensor hatasi kabul edilir.</summary>
+    /// <summary>Temperature: values outside -50..150 C are treated as sensor faults.</summary>
     public static CellStat Temperature(double[] values)
         => Compute(values, static t => t > -50 && t < 150);
 

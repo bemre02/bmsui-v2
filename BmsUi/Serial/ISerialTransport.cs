@@ -1,8 +1,8 @@
 namespace BmsUi.Serial;
 
 /// <summary>
-/// Seri I/O soyutlamasi. SerialLink'in gercek COM portu olmadan test edilebilmesi icin var.
-/// Read(): veri gelmezse TimeoutException firlatir (SerialPort davranisiyla ayni).
+/// Serial I/O abstraction. Exists so SerialLink can be tested without a real COM port.
+/// Read(): throws TimeoutException when no data arrives (same contract as SerialPort).
 /// </summary>
 public interface ISerialTransport : IDisposable
 {

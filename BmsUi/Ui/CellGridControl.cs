@@ -8,12 +8,9 @@ namespace BmsUi.Ui;
 public enum CellGridMode { Voltage, Temperature }
 
 /// <summary>
-/// 6 segment x 16 hucre owner-drawn izgara. Her hucre bir batarya sembolu olarak cizilir;
-/// deger sembolun icine yazilir. 96 ayri Label yerine tek Paint — 5 Hz'de titremesin diye
-/// cift tamponlu.
-///
-/// Renk: tek hue'lu sequential ramp (buyukluk). Alarm ramp'in parcasi degildir — status
-/// rengi + uyari ikonu ile gosterilir, yani renk tek basina anlam tasimaz.
+/// Owner-drawn 6 segment x 16 cell grid. Each cell is drawn as a battery silhouette with
+/// its value inside. One Paint instead of 96 separate Labels, double buffered so a 5 Hz
+/// refresh does not flicker.
 /// </summary>
 public sealed class CellGridControl : Control
 {
@@ -47,7 +44,7 @@ public sealed class CellGridControl : Control
     private double AlarmHigh => IsVoltage ? _settings.VoltageAlarmHigh : _settings.TempAlarmHigh;
     private string Unit => IsVoltage ? "V" : "°C";
 
-    /// <summary>UI thread'inden cagrilir (Form1.Invoke icinde).</summary>
+    /// <summary>Called from the UI thread (inside Form1.Invoke).</summary>
     public void UpdateData(double[] values, Func<int, bool> isBalancing)
     {
         Array.Copy(values, _values, HvProtocol.CellCount);
@@ -101,7 +98,7 @@ public sealed class CellGridControl : Control
         float indexSize = Math.Clamp(tileH * 0.155f, 6.5f, 11f);
 
         using var valueFont = new Font("Segoe UI", valueSize, FontStyle.Bold, GraphicsUnit.Point);
-        // Indeks ve segment etiketleri kalin: soluk gri okunmuyordu
+        // Index and segment labels are bold: the faint grey was hard to read
         using var indexFont = new Font("Segoe UI", indexSize, FontStyle.Bold, GraphicsUnit.Point);
         using var markFont = new Font("Segoe UI", Math.Clamp(indexSize * 1.3f, 8.5f, 13.5f),
                                       FontStyle.Bold, GraphicsUnit.Point);
@@ -139,13 +136,13 @@ public sealed class CellGridControl : Control
     }
 
     /// <summary>
-    /// Hücre bir DİKEY PİL silueti olarak çizilir: gövde + üstte kutup.
+    /// A cell is drawn as a VERTICAL BATTERY silhouette: body plus a terminal on top.
     ///
-    /// Gövde ve kutup TEK bir path olarak kurulur; ayrı ayrı çizilseydi alarm konturu
-    /// ikisinin birleştiği iç kenarları da çizer ve siluet bozulurdu.
+    /// Body and terminal are built as a SINGLE path; drawn separately, the alarm outline
+    /// would also trace the inner edges where they meet and ruin the silhouette.
     ///
-    /// İçerik gövdeye yerleşir: indeks (sol üst), genel ortalama oku (sağ üst),
-    /// balans "B" (sol alt), segment sigma işareti (sağ alt).
+    /// Content sits inside the body: index (top left), overall-mean arrow (top right),
+    /// balance "B" (bottom left), segment sigma mark (bottom right).
     /// </summary>
     private void DrawCellTile(Graphics g, RectangleF tile, int index, double value,
                               CellState state, bool balancing, CellMark mark, Font valueFont,
@@ -162,11 +159,11 @@ public sealed class CellGridControl : Control
 
         BatteryPath(tile, out var body).Dispose();
 
-        // Indeks govdenin sol ustunde
+        // Index at the top left of the body
         using (var indexBrush = new SolidBrush(Color.FromArgb(235, ink)))
             g.DrawString(index.ToString(), indexFont, indexBrush, body.X + 3f, body.Y + 1f);
 
-        // Deger — alt kosedeki rozetlere yer birakacak sekilde ortalanir
+        // Value — centred with room left for the bottom-corner badges
         using (var inkBrush = new SolidBrush(ink))
             g.DrawString(FormatValue(value, state), valueFont, inkBrush,
                          new RectangleF(body.X, body.Y + body.Height * 0.10f, body.Width,
@@ -177,9 +174,9 @@ public sealed class CellGridControl : Control
         if (state != CellState.Invalid)
             DrawStatMarks(g, body, mark, ink, markFont, state == CellState.Alarm);
 
-        // Alarm: dolgu degeri gostermeye devam eder; alarm kontur + ikonla gelir.
-        // Kontur ⚠ ikonuyla AYNI amber renkte; altindaki koyu kilif sayesinde amber
-        // dolgu uzerinde de sinir gorunur kalir. Kontur pil siluetini takip eder.
+        // Alarm: the fill keeps showing the value; the alarm arrives as outline + icon.
+        // The outline is the SAME amber as the warning icon, with a dark casing beneath so
+        // the border stays visible on an amber fill. It follows the battery silhouette.
         if (state == CellState.Alarm)
         {
             float w = Math.Max(2f, tile.Height * 0.042f);
@@ -194,9 +191,9 @@ public sealed class CellGridControl : Control
     }
 
     /// <summary>
-    /// Dikey pil silueti: yuvarlatilmis govde + ust kenarin ortasinda kutup.
-    /// Kose yaylari arasindaki duz kenarlar ACIK cizgilerle veriliyor; AddArc'in
-    /// kendi bagladigi cizgiler capraz olur ve kutup ucgene doner.
+    /// Vertical battery silhouette: rounded body plus a terminal centred on the top edge.
+    /// The straight edges between the corner arcs are given EXPLICITLY; the lines AddArc
+    /// draws on its own would be diagonal and turn the terminal into a triangle.
     /// </summary>
     private static GraphicsPath BatteryPath(RectangleF cell, out RectangleF body)
     {
@@ -218,25 +215,25 @@ public sealed class CellGridControl : Control
         float nr = Math.Min(nubW * 0.28f, nubH * 0.7f);
         float nd = nr * 2f;
 
-        path.AddArc(body.X, body.Y, d, d, 180, 90);                 // govde sol ust
-        path.AddLine(body.X + r, body.Y, nubLeft, body.Y);          // govde ustu
-        path.AddLine(nubLeft, body.Y, nubLeft, cell.Y + nr);        // kutup sol kenari
-        path.AddArc(nubLeft, cell.Y, nd, nd, 180, 90);              // kutup sol ust
-        path.AddLine(nubLeft + nr, cell.Y, nubRight - nr, cell.Y);  // kutup ustu
-        path.AddArc(nubRight - nd, cell.Y, nd, nd, 270, 90);        // kutup sag ust
-        path.AddLine(nubRight, cell.Y + nr, nubRight, body.Y);      // kutup sag kenari
-        path.AddLine(nubRight, body.Y, body.Right - r, body.Y);     // govde ustu
-        path.AddArc(body.Right - d, body.Y, d, d, 270, 90);         // govde sag ust
-        path.AddArc(body.Right - d, body.Bottom - d, d, d, 0, 90);  // govde sag alt
-        path.AddArc(body.X, body.Bottom - d, d, d, 90, 90);         // govde sol alt
+        path.AddArc(body.X, body.Y, d, d, 180, 90);                 // body top left
+        path.AddLine(body.X + r, body.Y, nubLeft, body.Y);          // body top edge
+        path.AddLine(nubLeft, body.Y, nubLeft, cell.Y + nr);        // terminal left edge
+        path.AddArc(nubLeft, cell.Y, nd, nd, 180, 90);              // terminal top left
+        path.AddLine(nubLeft + nr, cell.Y, nubRight - nr, cell.Y);  // terminal top edge
+        path.AddArc(nubRight - nd, cell.Y, nd, nd, 270, 90);        // terminal top right
+        path.AddLine(nubRight, cell.Y + nr, nubRight, body.Y);      // terminal right edge
+        path.AddLine(nubRight, body.Y, body.Right - r, body.Y);     // body top edge
+        path.AddArc(body.Right - d, body.Y, d, d, 270, 90);         // body top right
+        path.AddArc(body.Right - d, body.Bottom - d, d, d, 0, 90);  // body bottom right
+        path.AddArc(body.X, body.Bottom - d, d, d, 90, 90);         // body bottom left
         path.CloseFigure();
         return path;
     }
 
     /// <summary>
-    /// Balans rozeti: sol alt kosede altin zemin uzerinde "B".
-    /// Kontur sart: altin renk, ramp'in sari-turuncu ortasinda dolguyla neredeyse
-    /// ayni tona dusup rozeti gorunmez yapiyor.
+    /// Balance badge: a "B" on gold at the bottom left.
+    /// The outline is required: gold drops to almost the same tone as the fill in the
+    /// yellow-orange middle of the ramp, which made the badge disappear.
     /// </summary>
     private static void DrawBalanceBadge(Graphics g, RectangleF tile, Font font, Color ink)
     {
@@ -261,19 +258,19 @@ public sealed class CellGridControl : Control
     }
 
     /// <summary>
-    /// Iki bagimsiz istatistik isareti:
-    ///   ▲/▼ (sag ust)  — 96 hucrenin GENEL ortalamasinin ustunde/altinda
-    ///   σ+ / σ− (sag alt) — kendi SEGMENTinin ortalamasindan 1σ'dan fazla sapmis
-    /// Ayri tutulmalari sart: bir segment tumuyle paket ortalamasinin altindaysa, o
-    /// segmentin en yuksek hucresi "σ+" ama yine de "▼" olabilir.
+    /// Two independent statistical marks:
+    ///   ▲/▼ (top right)   — above/below the OVERALL mean of the 96 cells
+    ///   σ+ / σ− (bottom right) — more than 1 sigma from its OWN SEGMENT's mean
+    /// They must stay separate: if a segment sits entirely below the pack mean, that
+    /// segment's highest cell can be "σ+" and still be "▼".
     /// </summary>
     private static void DrawStatMarks(Graphics g, RectangleF tile, CellMark mark, Color ink,
                                       Font markFont, bool alarmPresent)
     {
         if (mark == CellMark.None || tile.Width < 26f) return;
 
-        // Genel ortalamaya gore yon — her hucrede var, o yuzden soluk.
-        // Alarm ikonu da sag ust kosede duruyor; varsa ok onun soluna kayar.
+        // Direction against the overall mean — present on every cell, hence subdued.
+        // The warning icon also lives in the top-right corner, so the arrow shifts left.
         string? arrow = mark.HasFlag(CellMark.AboveMean) ? "▲"
                       : mark.HasFlag(CellMark.BelowMean) ? "▼" : null;
         if (arrow is not null)
@@ -285,7 +282,7 @@ public sealed class CellGridControl : Control
                          tile.Right - size.Width - 1f - badgeWidth, tile.Y + 1f);
         }
 
-        // Segment ici aykirilik — az sayida hucrede cikar, o yuzden belirgin
+        // Outlier within its segment — rare, so it is drawn prominently
         string? sigma = mark.HasFlag(CellMark.AboveSegmentSigma) ? "σ+"
                       : mark.HasFlag(CellMark.BelowSegmentSigma) ? "σ−" : null;
         if (sigma is not null)
@@ -300,7 +297,7 @@ public sealed class CellGridControl : Control
     private static float WarningBadgeSize(RectangleF body)
         => Math.Clamp(Math.Min(body.Height * 0.46f, body.Width * 0.30f), 8f, 18f);
 
-    /// <summary>Uyari rozeti: govdenin sag ust kosesinde uclu + unlem.</summary>
+    /// <summary>Warning badge: triangle plus exclamation mark at the body's top right.</summary>
     private static void DrawWarningBadge(Graphics g, RectangleF body)
     {
         float size = WarningBadgeSize(body);
@@ -327,7 +324,7 @@ public sealed class CellGridControl : Control
         g.FillRectangle(ink, x + size / 2f - barW / 2f, y + size * 0.71f, barW, barW);
     }
 
-    /// <summary>Alt şerit: renk skalası, alarm eşikleri ve işaret açıklamaları.</summary>
+    /// <summary>Footer strip: colour scale, alarm thresholds and mark legend.</summary>
     private void DrawLegend(Graphics g, RectangleF area, Font font)
     {
         if (area.Width < 80 || area.Height < 14) return;
@@ -358,12 +355,12 @@ public sealed class CellGridControl : Control
         float colW = Math.Max(150f, (area.Width - bar.Width - 24f) / 2f);
         float rowH = area.Height * 0.5f;
 
-        // 1. sutun: alarm ve balans
+        // Column 1: alarm and balance
         float x1 = bar.Right + 24f;
         DrawWarningBadge(g, new RectangleF(x1, area.Y + 1f, 15f, 15f));
         string alarmText = IsVoltage
-            ? $"eşik dışı: < {AlarmLow:F2} / > {AlarmHigh:F2} V"
-            : $"eşik dışı: < {AlarmLow:F0} / > {AlarmHigh:F0} °C";
+            ? $"out of range: < {AlarmLow:F2} / > {AlarmHigh:F2} V"
+            : $"out of range: < {AlarmLow:F0} / > {AlarmHigh:F0} °C";
         using (var warn = new SolidBrush(Heatmap.WarningColor))
             g.DrawString(alarmText, font, warn, x1 + 19f, area.Y);
         using (var gold = new SolidBrush(Heatmap.BalanceRing))
@@ -375,27 +372,27 @@ public sealed class CellGridControl : Control
                    { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                 g.DrawString("B", font, badgeInk,
                              new RectangleF(x1 + 1f, area.Y + rowH + 1f, 13f, 13f), fmt);
-            g.DrawString("balansta", font, gold, x1 + 19f, area.Y + rowH);
+            g.DrawString("balancing", font, gold, x1 + 19f, area.Y + rowH);
         }
 
-        // 2. sutun: istatistik isaretleri + o anki degerler
+        // Column 2: statistical marks plus their current values
         float x2 = x1 + colW;
         if (x2 + 60f > area.Right) return;
 
         string meanText = _analysis.HasData
-            ? (IsVoltage ? $"ort {_analysis.Mean:F3} V" : $"ort {_analysis.Mean:F1} °C")
-            : "ort —";
-        // Paket geneli sigma; hucre isaretleri SEGMENT sigmasina gore verildigi icin
-        // etiket "paket" diyerek karisikligi onluyor
+            ? (IsVoltage ? $"mean {_analysis.Mean:F3} V" : $"mean {_analysis.Mean:F1} °C")
+            : "mean —";
+        // Pack-wide sigma. The cell marks use SEGMENT sigma, so the label says "pack"
+        // to keep the two apart
         string sigmaText = _analysis.HasData
-            ? (IsVoltage ? $"paket σ {_analysis.StdDev * 1000:F1} mV"
-                         : $"paket σ {_analysis.StdDev:F2} °C")
-            : "paket σ —";
+            ? (IsVoltage ? $"pack σ {_analysis.StdDev * 1000:F1} mV"
+                         : $"pack σ {_analysis.StdDev:F2} °C")
+            : "pack σ —";
 
-        // Degerler aciklamalarin ARDINA yazilir: ayri sutun dar pencerede sigmiyordu
+        // Values go AFTER the captions: a separate column did not fit in a narrow window
         using var ink = new SolidBrush(Heatmap.PrimaryInk);
-        g.DrawString($"▲▼ genel ort. üstü / altı  ·  {meanText}", font, muted, x2, area.Y);
-        g.DrawString($"σ+ σ−  segment ±1σ dışı  ·  {sigmaText}", font, ink, x2, area.Y + rowH);
+        g.DrawString($"▲▼ above / below overall mean  ·  {meanText}", font, muted, x2, area.Y);
+        g.DrawString($"σ+ σ−  beyond segment ±1σ  ·  {sigmaText}", font, ink, x2, area.Y + rowH);
     }
 
     private static GraphicsPath RoundedRect(RectangleF r, float radius)

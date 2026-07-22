@@ -3,8 +3,8 @@ using BmsUi.Protocol;
 using BmsUi.Serial;
 
 /// <summary>
-/// bms_simulator.py'nin C# ikizi: firmware gibi gelen komutun UZUNLUGUNA gore cevap
-/// uretir. PollWorker'i gercek port olmadan uctan uca surmek icin kullanilir.
+/// C# twin of bms_simulator.py: like the firmware, it answers based on the LENGTH of the
+/// incoming command. Used to drive PollWorker end to end without a real port.
 /// </summary>
 public sealed class FakeDeviceTransport : ISerialTransport
 {
@@ -16,10 +16,10 @@ public sealed class FakeDeviceTransport : ISerialTransport
     public double[] Temps { get; } = new double[HvProtocol.CellCount];
     public ushort[] BalanceBitmaps { get; } = new ushort[HvProtocol.SegmentCount];
 
-    /// <summary>Cevaplari 64 baytlik parcalara boler (CDC davranisi).</summary>
+    /// <summary>Splits responses into 64-byte chunks (CDC behaviour).</summary>
     public bool Chunked { get; set; }
 
-    /// <summary>true iken cihaz hic cevap vermez (kopmus baglanti taklidi).</summary>
+    /// <summary>While true the device never answers (simulates a dropped link).</summary>
     public bool Mute { get; set; }
 
     public int CommandCount { get; private set; }
@@ -29,7 +29,7 @@ public sealed class FakeDeviceTransport : ISerialTransport
         for (int i = 0; i < HvProtocol.CellCount; i++)
         {
             Voltages[i] = 3.60 + i * 0.005;      // 3.600 .. 4.075
-            Temps[i] = -5.0 + i * 0.5;           // -5.0 .. 42.5  (negatif uc dahil)
+            Temps[i] = -5.0 + i * 0.5;           // -5.0 .. 42.5  (includes the negative end)
         }
         Registers[Reg.Faults] = (1 << 2) | (1 << 13);
         Registers[Reg.Outputs] = OutputBits.Air | OutputBits.Pre;
@@ -73,7 +73,7 @@ public sealed class FakeDeviceTransport : ISerialTransport
         HvProtocol.CmdCellVoltages => CellFrame(Voltages, HvProtocol.CmdCellVoltages),
         HvProtocol.CmdCellTemps => CellFrame(Temps, HvProtocol.CmdCellTemps),
         HvProtocol.CmdBalance => BalanceFrame(),
-        // firmware: idx >= 50 sessizce dusurulur
+        // firmware: idx >= 50 is dropped silently
         _ => cmd < HvProtocol.MaxRegisterIndexExclusive ? RegisterFrame(cmd, Registers[cmd]) : null,
     };
 
@@ -117,7 +117,7 @@ public sealed class FakeDeviceTransport : ISerialTransport
     {
         lock (_lock)
         {
-            if (_pending.Count == 0) throw new TimeoutException("FakeDevice: cevap yok");
+            if (_pending.Count == 0) throw new TimeoutException("FakeDevice: no response pending");
             int limit = Chunked ? Math.Min(count, 64) : count;
             int n = 0;
             while (n < limit && _pending.Count > 0) buffer[offset + n++] = _pending.Dequeue();

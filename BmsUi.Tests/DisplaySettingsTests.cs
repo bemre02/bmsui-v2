@@ -49,7 +49,7 @@ public class DisplaySettingsTests
         string path = TempFile();
         try
         {
-            File.WriteAllText(path, "{ bu json degil ]]");
+            File.WriteAllText(path, "{ this is not json ]]");
             Assert.Equal(2.50, DisplaySettings.Load(path).VoltageAlarmLow, 3);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
@@ -58,7 +58,7 @@ public class DisplaySettingsTests
     [Fact]
     public void Normalized_FixesInvertedRanges()
     {
-        // Ters aralik cizimi bozar (sifira bolme / bos ramp) — sessizce duzeltilmeli
+        // An inverted range breaks drawing (divide by zero / empty ramp) — fix it silently
         var s = new DisplaySettings
         {
             VoltageScaleLow = 4.10,

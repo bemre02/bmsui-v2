@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using BmsUi.Protocol;
 
-/// <summary>Testlerde firmware'in urettigi cerceveleri taklit eder.</summary>
+/// <summary>Builds the frames the firmware would produce, for use in tests.</summary>
 public static class FrameBuilder
 {
     public static byte[] CellFrame(short[] rawValues, byte id)

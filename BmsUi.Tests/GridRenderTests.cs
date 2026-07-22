@@ -7,8 +7,8 @@ using BmsUi.Ui;
 using Xunit;
 
 /// <summary>
-/// Izgarayi gercek boyutlarda bitmap'e cizer. Hem cizim hatalarini yakalar hem de
-/// gorsel inceleme icin PNG birakir (temp klasorune).
+/// Renders the grid to a bitmap at realistic sizes. Catches drawing errors and leaves a
+/// PNG behind (in the temp folder) for visual inspection.
 /// </summary>
 public class GridRenderTests
 {
@@ -25,8 +25,8 @@ public class GridRenderTests
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "UI thread'i zamaninda bitmedi");
-        if (failure is not null) throw new Xunit.Sdk.XunitException($"Cizim hatasi: {failure}");
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "UI thread did not finish in time");
+        if (failure is not null) throw new Xunit.Sdk.XunitException($"Drawing failure: {failure}");
     }
 
     private static void Render(CellGridMode mode, double[] values, string previewName)
@@ -58,9 +58,9 @@ public class GridRenderTests
     {
         var v = new double[HvProtocol.CellCount];
         for (int i = 0; i < v.Length; i++) v[i] = 3.55 + i * 0.006;   // 3.55 -> 4.12
-        v[5] = 0.00;    // gecersiz
-        v[11] = 2.31;   // alt alarm
-        v[40] = 4.31;   // ust alarm
+        v[5] = 0.00;    // invalid
+        v[11] = 2.31;   // low alarm
+        v[40] = 4.31;   // high alarm
         Render(CellGridMode.Voltage, v, "voltage");
         Assert.True(File.Exists(PreviewPath("voltage")));
     }
@@ -70,13 +70,13 @@ public class GridRenderTests
     {
         var t = new double[HvProtocol.CellCount];
         for (int i = 0; i < t.Length; i++) t[i] = 18.0 + i * 0.42;    // 18 -> 58
-        t[2] = -12.5;   // negatif (alt alarm)
-        t[63] = 91.0;   // ust alarm
+        t[2] = -12.5;   // negative (low alarm)
+        t[63] = 91.0;   // high alarm
         Render(CellGridMode.Temperature, t, "temperature");
         Assert.True(File.Exists(PreviewPath("temperature")));
     }
 
-    /// <summary>Tum pencereyi simulasyon verisiyle cizip PNG birakir (gorsel inceleme).</summary>
+    /// <summary>Renders the whole window with simulated data and leaves a PNG behind.</summary>
     [Fact]
     public void FullWindow_RendersWithLiveSimulationData()
     {
@@ -96,7 +96,7 @@ public class GridRenderTests
                 Application.DoEvents();
                 Thread.Sleep(20);
             }
-            // Birkac tur daha donsun ki hucre dizileri de dolsun
+            // Let a few more rounds run so the cell arrays fill up too
             sw.Restart();
             while (sw.ElapsedMilliseconds < 900) { Application.DoEvents(); Thread.Sleep(20); }
 
@@ -106,7 +106,7 @@ public class GridRenderTests
                 bmp.Save(PreviewPath("window"), ImageFormat.Png);
             }
 
-            form.TabsControl.SelectedIndex = 3;     // Ayarlar
+            form.TabsControl.SelectedIndex = 3;     // Settings
             Application.DoEvents();
             Thread.Sleep(120);
             Application.DoEvents();

@@ -1,23 +1,23 @@
 namespace BmsUi.Ui;
 
 /// <summary>
-/// Arayuzun renk ve tipografi belirtecleri. Tek yerde tutulur ki izgara, panel ve
-/// form ayni sistemi konussun.
+/// Colour and typography tokens for the UI. Kept in one place so the grid, the panel
+/// and the form all speak the same system.
 /// </summary>
 public static class Theme
 {
-    // Yuzeyler
+    // Surfaces
     public static readonly Color Page = Heatmap.FromHex(0x121211);
     public static readonly Color Card = Heatmap.FromHex(0x1A1A19);
     public static readonly Color Input = Heatmap.FromHex(0x26262A);
     public static readonly Color Hairline = Heatmap.FromHex(0x2C2C2A);
 
-    // Murekkep
+    // Ink
     public static readonly Color Ink = Color.White;
     public static readonly Color InkSecondary = Heatmap.FromHex(0xC3C2B7);
     public static readonly Color InkMuted = Heatmap.FromHex(0x898781);
 
-    // Durum (dataviz status paleti — sabit)
+    // Status (fixed status palette — never themed)
     public static readonly Color Good = Heatmap.FromHex(0x0CA30C);
     public static readonly Color Warning = Heatmap.FromHex(0xFAB219);
     public static readonly Color Critical = Heatmap.FromHex(0xD03B3B);

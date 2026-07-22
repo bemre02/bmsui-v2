@@ -40,7 +40,7 @@ public class SerialLinkTests
         var frame = FrameBuilder.CellFrame(raw, HvProtocol.CmdCellVoltages);
 
         var t = new FakeTransport();
-        t.EnqueueChunked(frame, 64, 64, 64, 2);   // CDC 64 baytlik paketler
+        t.EnqueueChunked(frame, 64, 64, 64, 2);   // CDC 64-byte packets
         using var link = new SerialLink(t);
 
         var got = link.Transact(new[] { HvProtocol.CmdCellVoltages },
@@ -119,7 +119,7 @@ public class SerialLinkTests
     [Fact]
     public void WriteCommand_IsSentAsSingleWriteCall()
     {
-        // Firmware paket UZUNLUGUNA gore ayristirir; komut tek Write ile gitmeli
+        // The firmware dispatches on packet LENGTH; a command must go out in one Write
         var t = new FakeTransport();
         t.EnqueueResponse(FrameBuilder.RegisterFrame(Reg.Faults, 0));
         using var link = new SerialLink(t);

@@ -2,30 +2,31 @@ using BmsUi.Protocol;
 
 namespace BmsUi.Model;
 
-/// <summary>Bir hücrenin istatistiksel konumu — birden fazlası aynı anda geçerli olabilir.</summary>
+/// <summary>Statistical position of a cell — more than one flag can apply at once.</summary>
 [Flags]
 public enum CellMark
 {
     None = 0,
-    /// <summary>96 hücrenin genel ortalamasının üstünde.</summary>
+    /// <summary>Above the overall mean of all 96 cells.</summary>
     AboveMean = 1 << 0,
-    /// <summary>96 hücrenin genel ortalamasının altında.</summary>
+    /// <summary>Below the overall mean of all 96 cells.</summary>
     BelowMean = 1 << 1,
-    /// <summary>Kendi segmentinin ortalamasından +1σ'dan fazla sapmış.</summary>
+    /// <summary>More than +1 sigma away from its own segment mean.</summary>
     AboveSegmentSigma = 1 << 2,
-    /// <summary>Kendi segmentinin ortalamasından −1σ'dan fazla sapmış.</summary>
+    /// <summary>More than -1 sigma away from its own segment mean.</summary>
     BelowSegmentSigma = 1 << 3,
 }
 
 /// <summary>
-/// 96 hücrenin genel ortalaması ve her segmentin kendi içindeki standart sapması.
+/// Overall mean of the 96 cells plus the standard deviation within each segment.
 ///
-/// Segment σ'sı, o segmentin 16 hücresinin TAMAMI üzerinden hesaplanır (örneklem değil,
-/// tüm popülasyon) — bu yüzden N'e bölünür, N-1'e değil.
+/// Segment sigma is computed over ALL 16 cells of that segment (the whole population, not
+/// a sample) — hence divided by N, not N-1.
 ///
-/// Segment içi sapma, komşularından ayrışan hücreyi yakalar; genel ortalama ise paketin
-/// bütününe göre konumu verir. Bir segment tümüyle ortalamanın altındaysa bu ikisi farklı
-/// yönü gösterebilir, o yüzden ayrı işaretlenirler.
+/// Deviation within a segment catches a cell drifting away from its neighbours, while the
+/// overall mean gives its position relative to the whole pack. If a segment sits entirely
+/// below the pack mean those two can point in opposite directions, which is why they are
+/// tracked as separate flags.
 /// </summary>
 public sealed class CellAnalysis
 {

@@ -3,19 +3,19 @@ using Microsoft.Win32;
 
 namespace BmsUi.Serial;
 
-/// <summary>Bir COM portu ve ne olduguna dair kisa aciklama.</summary>
+/// <summary>A COM port plus a short description of what it is.</summary>
 public sealed record PortInfo(string Name, string? Kind)
 {
     public override string ToString() => Kind is null ? Name : $"{Name} — {Kind}";
 }
 
 /// <summary>
-/// Takili COM portlarini listeler ve her birinin turunu yazar.
+/// Lists the attached COM ports and labels each one with its kind.
 ///
-/// Tur bilgisi WMI ile de alinabilir ama Win32_PnPEntity sorgusu bu makinede ~810 ms
-/// suruyor; cihaz takilip cikarildikca cagrilacagi icin cok yavas. Bunun yerine
-/// HKLM\HARDWARE\DEVICEMAP\SERIALCOMM okunuyor: ayni bilgiyi tek anahtar okumasiyla
-/// veriyor (\Device\USBSER000 -> COM12, \Device\BthModem1 -> COM3).
+/// WMI could supply the kind too, but a Win32_PnPEntity query takes ~810 ms on this
+/// machine and this runs on every device plug/unplug — far too slow. Instead we read
+/// HKLM\HARDWARE\DEVICEMAP\SERIALCOMM, which carries the same information and costs a
+/// single key read (\Device\USBSER000 -> COM12, \Device\BthModem1 -> COM3).
 /// </summary>
 public static class SerialPortCatalog
 {
@@ -32,16 +32,16 @@ public static class SerialPortCatalog
             .ToList();
     }
 
-    /// <summary>COM10 &lt; COM9 gibi metin siralamasindan kacinmak icin sayisal sira.</summary>
+    /// <summary>Numeric ordering, so text sorting does not put COM10 before COM9.</summary>
     public static int PortNumber(string portName)
         => int.TryParse(portName.AsSpan().TrimStart("COMcom".ToCharArray()), out int n) ? n : int.MaxValue;
 
-    /// <summary>Cihaz yolundan okunabilir bir tur cikarir (saf fonksiyon — test edilebilir).</summary>
+    /// <summary>Derives a readable kind from the device path (pure function — testable).</summary>
     public static string? DescribeDevice(string devicePath)
     {
         if (string.IsNullOrWhiteSpace(devicePath)) return null;
 
-        // Buyuk/kucuk harf duyarsiz karsilastirma: yollar surucuye gore degisiyor
+        // Case-insensitive: the exact casing of these paths varies by driver
         if (Contains(devicePath, "USBSER")) return "USB";
         if (Contains(devicePath, "BthModem") || Contains(devicePath, "BTHMODEM")) return "Bluetooth";
         if (Contains(devicePath, "VCP")) return "ST-Link";
@@ -49,14 +49,14 @@ public static class SerialPortCatalog
         if (Contains(devicePath, "ProlificSerial")) return "Prolific";
         if (Contains(devicePath, "FTDIBUS") || Contains(devicePath, "VCP0")) return "FTDI";
         if (Contains(devicePath, "CH34")) return "CH340";
-        if (Contains(devicePath, "Serial")) return "Seri";
+        if (Contains(devicePath, "Serial")) return "Serial";
         return null;
 
         static bool Contains(string haystack, string needle)
             => haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>SERIALCOMM: cihaz yolu -> port adi. Okunamazsa bos sozluk doner.</summary>
+    /// <summary>SERIALCOMM: device path -> port name. Returns an empty map if unreadable.</summary>
     private static Dictionary<string, string> ReadDeviceMap()
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -75,7 +75,7 @@ public static class SerialPortCatalog
         }
         catch
         {
-            // Registry okunamadiysa portlari aciklamasiz gosteririz — islev kaybi yok
+            // If the registry is unreadable we show ports without a kind — nothing is lost
         }
         return result;
     }

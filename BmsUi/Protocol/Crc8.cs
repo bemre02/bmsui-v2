@@ -1,8 +1,8 @@
 namespace BmsUi.Protocol;
 
 /// <summary>
-/// CRC-8/SMBUS: poly=0x07, init=0x00, refleksiyon yok, xorout=0x00.
-/// Firmware karsiligi: main.cpp calculateCRC8().
+/// CRC-8/SMBUS: poly=0x07, init=0x00, no reflection, xorout=0x00.
+/// Mirrors calculateCRC8() in the firmware (main.cpp).
 /// </summary>
 public static class Crc8
 {

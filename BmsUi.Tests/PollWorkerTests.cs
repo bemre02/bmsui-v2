@@ -5,12 +5,12 @@ using BmsUi.Serial;
 using Xunit;
 
 /// <summary>
-/// PollWorker + SerialLink + FrameParser + BmsSnapshot zincirinin uctan uca testi.
-/// Cihaz yerine FakeDeviceTransport konusur (firmware gibi uzunluga gore ayristirir).
+/// End-to-end test of the PollWorker + SerialLink + FrameParser + BmsSnapshot chain.
+/// FakeDeviceTransport stands in for the device (dispatching on length, like the firmware).
 /// </summary>
 public class PollWorkerTests
 {
-    /// <summary>Icinde hucre dizileri dolmus ilk snapshot'i bekler.</summary>
+    /// <summary>Waits for the first snapshot whose cell arrays have been populated.</summary>
     private static BmsSnapshot? RunUntilCellsPopulated(FakeDeviceTransport device,
                                                        int timeoutMs = 4000)
     {
@@ -27,7 +27,7 @@ public class PollWorkerTests
                 captured ??= snapshot;
                 gotIt.Set();
             }
-            worker.NotifyUiIdle();      // UI'nin isini bitirdigini bildirmesi taklidi
+            worker.NotifyUiIdle();      // stand-in for the UI reporting it is done
         };
 
         worker.Start();
@@ -44,11 +44,11 @@ public class PollWorkerTests
 
         Assert.NotNull(s);
         Assert.Equal(3.60, s!.CellVoltages[0], 2);
-        // Cihaz (uint16_t)(v*100.0) ile ASAGI KIRPAR: 4.075 -> 407 -> 4.07
+        // The device truncates via (uint16_t)(v*100.0): 4.075 -> 407 -> 4.07
         Assert.Equal(4.07, s.CellVoltages[95], 2);
-        Assert.Equal(-5.0, s.CellTemps[0], 2);          // negatif sicaklik dogru okundu
+        Assert.Equal(-5.0, s.CellTemps[0], 2);          // negative temperature read correctly
         Assert.Equal(372.50, s.PackVoltage, 2);
-        Assert.Equal(-123.4, s.PackCurrent, 2);         // isaretli akim
+        Assert.Equal(-123.4, s.PackCurrent, 2);         // signed current
         Assert.Equal(73.0, s.SocPercent, 1);
         Assert.True(s.AirClosed);
         Assert.True(s.PreActive);
@@ -86,7 +86,7 @@ public class PollWorkerTests
         bool fired = lost.Wait(4000);
         worker.Stop();
 
-        Assert.True(fired, "ConnectionLost tetiklenmedi");
+        Assert.True(fired, "ConnectionLost was not raised");
         Assert.False(string.IsNullOrWhiteSpace(reason));
     }
 
@@ -106,7 +106,7 @@ public class PollWorkerTests
         bool completed = done.Wait(4000);
         worker.Stop();
 
-        Assert.True(completed, "Yazma geri cagrisi calismadi");
+        Assert.True(completed, "the write callback never ran");
         Assert.Equal((ushort)60, echo);
         Assert.Equal(60, device.Registers[Reg.AllowedDisbalance]);
     }
@@ -114,8 +114,8 @@ public class PollWorkerTests
     [Fact]
     public void Worker_NeverPollsShadowedRegisters()
     {
-        // 0x29/0x2A/0x2B register olarak sorgulanirsa SerialLink istisna atar;
-        // zincirin bir tur donmesi bunun yasanmadigini kanitlar.
+        // SerialLink throws if 0x29/0x2A/0x2B are queried as registers; a completed round
+        // proves that never happened.
         var device = new FakeDeviceTransport();
         var s = RunUntilCellsPopulated(device);
         Assert.NotNull(s);

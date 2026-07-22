@@ -3,24 +3,24 @@ namespace BmsUi.Ui;
 public enum CellState
 {
     Normal,
-    /// <summary>Alarm eşiğinin altında ya da üstünde — kalın kontur + uyarı ikonu.</summary>
+    /// <summary>Below or above an alarm threshold — outline + warning icon.</summary>
     Alarm,
-    /// <summary>Eksik / stale hucre (0.00 V gibi).</summary>
+    /// <summary>Missing / stale cell (0.00 V and the like).</summary>
     Invalid,
 }
 
 /// <summary>
-/// Değer → renk eşlemesi. Dolgu her zaman büyüklüğü taşır; alarm dolguyu değiştirmez,
-/// kalın kontur + uyarı ikonuyla gösterilir — böylece renk tek başına anlam taşımaz ve
-/// eşik yanlış ayarlansa bile ızgara okunur kalır.
+/// Value-to-colour mapping. The fill always carries magnitude; an alarm never replaces
+/// the fill, it adds an outline plus a warning icon — so colour never carries meaning on
+/// its own and the grid stays readable even when a threshold is misconfigured.
 /// </summary>
 public static class Heatmap
 {
     /// <summary>
-    /// Voltaj: düşük = kırmızı, orta = sarı, yüksek = yeşil (BMS operatörünün beklediği
-    /// okuma). Kırmızı-yeşil, renk körlüğü için en riskli çifttir; bu yüzden değer her
-    /// hücrede yazılı, alt çubuk aynı bilgiyi UZUNLUKLA veriyor ve eşik dışı hücreler
-    /// ayrıca uyarı ikonu alıyor — renk tek başına hiçbir şey taşımıyor.
+    /// Voltage: low = red, mid = yellow, high = green (what a BMS operator expects to
+    /// read). Red-green is the riskiest pair for colour blindness, which is why the value
+    /// is printed on every cell and cells outside the thresholds also get a warning icon —
+    /// colour alone never carries the information.
     /// </summary>
     public static readonly Color[] VoltageRamp =
     {
@@ -30,8 +30,9 @@ public static class Heatmap
         FromHex(0x22C55E),
     };
 
-    // Sicaklik icin tek hue'lu amber ramp — voltajla ayni ekranda gorunmedigi icin
-    // (ayri sekmeler) ikinci bir hue guvenli; tek hue + monoton aciklik CVD-guvenli.
+    // Single-hue amber ramp for temperature. A second hue is safe because it never shares
+    // a screen with the voltage ramp (separate tabs); one hue with monotonic lightness is
+    // inherently colour-blind safe.
     public static readonly Color[] TemperatureRamp =
     {
         FromHex(0x3A1F05), FromHex(0x4D2A07), FromHex(0x63380A), FromHex(0x7A460C),
@@ -40,12 +41,12 @@ public static class Heatmap
         FromHex(0xFBE3CB),
     };
 
-    // Status paleti — sabit, hicbir zaman seri rengi olarak kullanilmaz
+    // Status palette — fixed, never used as a series colour
     public static readonly Color AlarmColor = FromHex(0xD03B3B);   // critical
     public static readonly Color WarningColor = FromHex(0xFAB219); // warning
     public static readonly Color InvalidColor = FromHex(0x4A4A48);
 
-    // Koyu tema yuzeyleri / murekkep
+    // Dark theme surfaces / ink
     public static readonly Color Surface = FromHex(0x1A1A19);
     public static readonly Color PrimaryInk = Color.White;
     public static readonly Color MutedInk = FromHex(0x898781);
@@ -55,7 +56,7 @@ public static class Heatmap
     public static Color FromHex(int rgb)
         => Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
 
-    /// <summary>Degeri [low, high] araliginda ramp adimina esler (aralik disi uclara kirpilir).</summary>
+    /// <summary>Maps a value in [low, high] onto a ramp step (clamped at both ends).</summary>
     public static Color Sequential(double value, double low, double high, Color[] ramp)
     {
         if (high <= low) return ramp[0];
@@ -75,12 +76,12 @@ public static class Heatmap
          : CellState.Normal;
 
     /// <summary>
-    /// Dolgu rengi HER ZAMAN degeri gosterir; yalnizca gecersiz hucre griye duser.
+    /// The fill ALWAYS shows the value; only an invalid cell falls back to grey.
     ///
-    /// Alarm dolguyu DEGISTIRMEZ: voltaj ramp'inin dusuk ucu zaten kirmizi oldugu icin
-    /// kirmizi bir alarm dolgusu "dusuk ama normal" hucreyle karisirdi. Ustelik esik
-    /// yanlis ayarlaninca tum izgara tek renge duserdi. Alarm bunun yerine kalin kontur
-    /// + uyari ikonu ile gosterilir.
+    /// An alarm does NOT change the fill: the low end of the voltage ramp is already red,
+    /// so a red alarm fill would be confused with a "low but normal" cell. Worse, a badly
+    /// set threshold would flatten the whole grid to one colour. The alarm is shown as an
+    /// outline plus a warning icon instead.
     /// </summary>
     public static Color Fill(CellState state, double value, double scaleLow, double scaleHigh,
                              Color[] ramp) => state == CellState.Invalid
@@ -88,22 +89,21 @@ public static class Heatmap
         : Sequential(value, scaleLow, scaleHigh, ramp);
 
     /// <summary>
-    /// Saf siyah — #0B0B0B degil. Bir ramp koyudan aciga gecerken mutlaka beyaz ve koyu
-    /// murekkebin esitlendigi noktadan geciyor; oradaki kontrast tavanini murekkebin
-    /// koyulugu belirliyor. #0B0B0B ile bu taban 4.44'te kaliyordu (AA esigi 4.5'in
-    /// altinda), saf siyahla 4.58'e cikiyor.
+    /// Pure black, not #0B0B0B. A ramp running dark-to-light must pass through the point
+    /// where white and dark ink tie on contrast, and the ceiling at that point is set by
+    /// how dark the dark ink is. With #0B0B0B that floor was 4.44 (below the AA threshold
+    /// of 4.5); pure black raises it to 4.58.
     /// </summary>
     public static readonly Color DarkInk = Color.Black;
 
     /// <summary>
-    /// Dolgunun üzerine yazılacak metin rengi: beyaz mı koyu mu daha yüksek kontrast
-    /// veriyorsa o.
+    /// Text colour for a given fill: whichever of white or dark ink gives more contrast.
     ///
-    /// Basit "algısal parlaklık + sabit eşik" yaklaşımı burada yanlış sonuç veriyordu:
-    /// doygun yeşil (#22C55E) o formülde 0.535 çıkıp eşiğin altına düşüyor ve beyaz yazı
-    /// seçiliyordu, oysa gerçek kontrast beyazda 2.3, koyuda 8.6. Hücre değeri rampın en
-    /// üst adımına girip çıktıkça yazı rengi bir beyaz bir koyu oluyordu.
-    /// Artık WCAG bağıl parlaklığı üzerinden iki seçenek karşılaştırılıyor.
+    /// The naive "perceived brightness + fixed threshold" approach was wrong here:
+    /// saturated green (#22C55E) scores 0.535 in that formula, falls below the threshold
+    /// and picked white — while real contrast is 2.3 on white versus 8.6 on dark. As a
+    /// cell drifted in and out of the top ramp step its text kept flipping colour.
+    /// The two options are now compared using WCAG relative luminance.
     /// </summary>
     public static Color InkOn(Color fill)
     {
@@ -113,7 +113,7 @@ public static class Heatmap
         return whiteContrast >= darkContrast ? Color.White : DarkInk;
     }
 
-    /// <summary>WCAG 2.x bağıl parlaklık (sRGB doğrusallaştırmasıyla).</summary>
+    /// <summary>WCAG 2.x relative luminance (with sRGB linearisation).</summary>
     public static double RelativeLuminance(Color c)
         => 0.2126 * Linearize(c.R) + 0.7152 * Linearize(c.G) + 0.0722 * Linearize(c.B);
 

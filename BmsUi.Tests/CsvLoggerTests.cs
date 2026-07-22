@@ -12,10 +12,10 @@ public class CsvLoggerTests
     public void BuildHeader_HasAllColumns()
     {
         var cols = CsvLogger.BuildHeader().Split(',');
-        // TIMESTAMP + 96 voltaj + 96 sicaklik + 6 balans + 17 ozet alani
+        // TIMESTAMP + 96 voltages + 96 temperatures + 6 balance + 17 summary fields
         Assert.Equal(1 + 96 + 96 + 6 + 17, cols.Length);
         Assert.Equal("TIMESTAMP", cols[0]);
-        // Takimin SD kart sablonuyla ayni isimlendirme
+        // Same naming as the team SD-card template
         Assert.Equal("BMS_CELL0_VOLTAGE_f", cols[1]);
         Assert.Equal("BMS_CELL95_VOLTAGE_f", cols[96]);
         Assert.Equal("BMS_CELL0_TEMP_f", cols[97]);
@@ -36,11 +36,11 @@ public class CsvLoggerTests
             {
                 var s = BmsSnapshot.Empty();
                 logger.Log(s);
-                logger.Log(s);      // araligi doldurmadi -> yazilmamali
+                logger.Log(s);      // interval not elapsed -> must not be written
                 Assert.Equal(1, logger.RowCount);
             }
             var lines = File.ReadAllLines(path);
-            Assert.Equal(2, lines.Length);          // baslik + 1 satir
+            Assert.Equal(2, lines.Length);          // header + 1 row
             Assert.StartsWith("TIMESTAMP,", lines[0]);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
@@ -60,7 +60,7 @@ public class CsvLoggerTests
             using (var logger = new CsvLogger(path, TimeSpan.Zero)) logger.Log(s);
 
             string row = File.ReadAllLines(path)[1];
-            Assert.Contains("3.875", row);       // TR yerel ayarinda bile nokta kullanilmali
+            Assert.Contains("3.875", row);       // must use a dot even under a Turkish locale
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
@@ -88,7 +88,7 @@ public class CsvLoggerTests
             using (var l2 = new CsvLogger(path, TimeSpan.Zero)) l2.Log(BmsSnapshot.Empty());
 
             var lines = File.ReadAllLines(path);
-            Assert.Equal(3, lines.Length);              // 1 baslik + 2 satir
+            Assert.Equal(3, lines.Length);              // 1 header + 2 rows
             Assert.Single(lines, l => l.StartsWith("TIMESTAMP,"));
         }
         finally { if (File.Exists(path)) File.Delete(path); }

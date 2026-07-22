@@ -5,12 +5,12 @@ using BmsUi.Ui;
 using Xunit;
 
 /// <summary>
-/// UI'nin gercekten acilip cizildigini kanitlar. Yerlesim hatalari (SplitterDistance),
-/// Paint icindeki sifira bolme gibi sorunlar yalnizca calisma aninda ortaya cikar.
+/// Proves the UI really opens and paints. Layout bugs (SplitterDistance) and divide-by-zero
+/// inside Paint only surface at runtime.
 /// </summary>
 public class UiSmokeTests
 {
-    /// <summary>WinForms STA thread ister; istisnayi cagirana tasir.</summary>
+    /// <summary>WinForms needs an STA thread; rethrows the failure on the caller.</summary>
     private static void RunSta(Action action)
     {
         Exception? failure = null;
@@ -21,8 +21,8 @@ public class UiSmokeTests
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "UI thread'i zamaninda bitmedi");
-        if (failure is not null) throw new Xunit.Sdk.XunitException($"UI hatasi: {failure}");
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "UI thread did not finish in time");
+        if (failure is not null) throw new Xunit.Sdk.XunitException($"UI failure: {failure}");
     }
 
     private static bool ContainsColor(Bitmap bmp, Color target)
@@ -37,19 +37,19 @@ public class UiSmokeTests
     }
 
     /// <summary>
-    /// Logo gomulu kaynak adiyla bulunuyor mu? Namespace/proje adi degisince sessizce
-    /// kaybolabilir — bu yuzden testle sabitlendi.
+    /// Is the logo found under its embedded resource name? It can disappear silently when
+    /// the namespace or project name changes, so it is pinned by a test.
     /// </summary>
     [Fact]
     public void TeamLogo_IsEmbeddedAndLoads()
     {
         Assert.NotNull(Branding.TeamLogo);
-        Assert.True(Branding.TeamLogo!.Width > 100, "logo beklenenden kucuk");
+        Assert.True(Branding.TeamLogo!.Width > 100, "logo smaller than expected");
     }
 
     /// <summary>
-    /// PictureBox kendisine atanan Image'i Dispose ederken yok ediyor. Paylasilan tek
-    /// statik gorsel verilirse IKINCI pencere logoyu kirmizi X olarak cizer.
+    /// PictureBox disposes the Image assigned to it. Hand it a single shared static image
+    /// and the SECOND window draws the logo as a red X.
     /// </summary>
     [Fact]
     public void SecondWindow_StillHasUsableLogo()
@@ -68,7 +68,7 @@ public class UiSmokeTests
             Application.DoEvents();
 
             Assert.NotNull(second.LogoBox.Image);
-            // Dispose edilmis Bitmap'te Width erisimi istisna atar
+            // Reading Width on a disposed Bitmap throws
             Assert.True(second.LogoBox.Image!.Width > 100);
             second.Close();
         });
@@ -83,7 +83,7 @@ public class UiSmokeTests
             form.Show();
             Application.DoEvents();
             Assert.True(form.IsHandleCreated);
-            // Voltaj / Sicaklik / Balans / Ayarlar / Log — cihaza yazan "Config" sekmesi yok
+            // Voltage / Temperature / Balance / Settings / Log — no device-writing "Config" tab
             Assert.Equal(5, form.TabsControl.TabPages.Count);
             Assert.DoesNotContain(form.TabsControl.TabPages.Cast<TabPage>(),
                                   p => p.Text.Contains("Config"));
@@ -92,8 +92,8 @@ public class UiSmokeTests
     }
 
     /// <summary>
-    /// Simulasyon modu acilinca Start -> sanal cihaz -> SerialLink -> parser -> PollWorker ->
-    /// Invoke -> etiketler zincirinin TAMAMI gercek UI uzerinde calisiyor mu?
+    /// With simulation on, does the WHOLE chain run on the real UI: Start -> virtual device ->
+    /// SerialLink -> parser -> PollWorker -> Invoke -> labels?
     /// </summary>
     [Fact]
     public void SimulationMode_UpdatesLiveUi()
@@ -106,9 +106,9 @@ public class UiSmokeTests
 
             form.SimulationCheckBox.Checked = true;
             form.StartStopButton.PerformClick();
-            Assert.Equal("Durdur", form.StartStopButton.Text);
+            Assert.Equal("Stop", form.StartStopButton.Text);
 
-            // UI thread'i burasi: mesaj pompasini elle dondurup guncellemeyi bekle
+            // We are on the UI thread here: pump messages manually and wait for the update
             var sw = System.Diagnostics.Stopwatch.StartNew();
             while (sw.ElapsedMilliseconds < 6000 && form.Dashboard.CurrentSnapshot is null)
             {
@@ -120,11 +120,11 @@ public class UiSmokeTests
             Assert.NotNull(snapshot);
             Assert.InRange(snapshot!.PackVoltage, 300.0, 410.0);
             Assert.True(snapshot.VoltageStats.HasData);
-            Assert.Contains("Simülasyon", form.ConnectionStatusLabel.Text);
+            Assert.Contains("Simulation", form.ConnectionStatusLabel.Text);
 
-            form.StartStopButton.PerformClick();                   // Durdur
-            Assert.Equal("Başlat", form.StartStopButton.Text);
-            Assert.Null(form.Dashboard.CurrentSnapshot);            // baglanti kesilince temizlenir
+            form.StartStopButton.PerformClick();                   // Stop
+            Assert.Equal("Start", form.StartStopButton.Text);
+            Assert.Null(form.Dashboard.CurrentSnapshot);            // cleared when the link drops
             form.Close();
         });
     }
@@ -142,17 +142,17 @@ public class UiSmokeTests
 
             var values = new double[96];
             for (int i = 0; i < 96; i++) values[i] = 3.85;
-            values[0] = 0.00;    // gecersiz  -> gri
-            values[1] = 2.40;    // UV alarmi -> kirmizi
-            values[2] = 4.30;    // OV alarmi -> kirmizi
-            grid.UpdateData(values, i => i == 5);   // hucre 5 balansta
+            values[0] = 0.00;    // invalid -> grey
+            values[1] = 2.40;    // UV alarm
+            values[2] = 4.30;    // OV alarm
+            grid.UpdateData(values, i => i == 5);   // cell 5 is balancing
 
             using var bmp = new Bitmap(grid.Width, grid.Height);
             grid.DrawToBitmap(bmp, new Rectangle(0, 0, grid.Width, grid.Height));
 
-            Assert.True(ContainsColor(bmp, Heatmap.WarningColor), "Uyari ikonu cizilmedi");
-            Assert.True(ContainsColor(bmp, Heatmap.InvalidColor), "Gecersiz hucre rengi cizilmedi");
-            Assert.True(ContainsColor(bmp, Heatmap.BalanceRing), "Balans cercevesi cizilmedi");
+            Assert.True(ContainsColor(bmp, Heatmap.WarningColor), "warning icon was not drawn");
+            Assert.True(ContainsColor(bmp, Heatmap.InvalidColor), "invalid-cell colour was not drawn");
+            Assert.True(ContainsColor(bmp, Heatmap.BalanceRing), "balance badge was not drawn");
 
             host.Close();
         });
@@ -171,12 +171,12 @@ public class UiSmokeTests
 
             var temps = new double[96];
             for (int i = 0; i < 96; i++) temps[i] = -20.0 + i;   // -20 .. 75
-            temps[95] = 95.0;                                    // asiri sicaklik alarmi
+            temps[95] = 95.0;                                    // overtemperature alarm
             grid.UpdateData(temps, _ => false);
 
             using var bmp = new Bitmap(grid.Width, grid.Height);
             grid.DrawToBitmap(bmp, new Rectangle(0, 0, grid.Width, grid.Height));
-            Assert.True(ContainsColor(bmp, Heatmap.WarningColor), "Asiri sicaklik uyarisi cizilmedi");
+            Assert.True(ContainsColor(bmp, Heatmap.WarningColor), "overtemperature warning was not drawn");
 
             host.Close();
         });

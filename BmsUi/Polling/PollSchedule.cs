@@ -5,8 +5,8 @@ namespace BmsUi.Polling;
 public enum PollItem { FastRegisters, SummaryRegisters, CellVoltages, CellTemps, Balance }
 
 /// <summary>
-/// 10 Hz temel tick uzerinde katmanli zamanlama (saf fonksiyon — test edilebilir):
-/// her tick hizli register'lar, her 2. tick hucre dizileri + ozet, her 5. tick balans.
+/// Tiered schedule on a 10 Hz base tick (pure function — testable): fast registers every
+/// tick, cell arrays + summary every 2nd tick, balance every 5th tick.
 /// </summary>
 public static class PollSchedule
 {
@@ -21,8 +21,8 @@ public static class PollSchedule
     };
 
     /// <summary>
-    /// Baglanti kurulunca bir kez okunan, nadiren degisen ayarlar. Balans ozetinde
-    /// gosterildigi icin ALLOWED_DISBALANCE okunur; UI'dan hicbir sey YAZILMAZ.
+    /// Rarely-changing settings, read once when the link comes up. ALLOWED_DISBALANCE is
+    /// read because the balance summary shows it; the UI never WRITES anything.
     /// </summary>
     public static readonly byte[] ConfigRegisters = { Reg.AllowedDisbalance };
 
