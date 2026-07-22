@@ -106,14 +106,25 @@ public class GridRenderTests
                 bmp.Save(PreviewPath("window"), ImageFormat.Png);
             }
 
-            form.TabsControl.SelectedIndex = 3;     // Settings
-            Application.DoEvents();
-            Thread.Sleep(120);
-            Application.DoEvents();
-            using (var bmp = new Bitmap(form.Width, form.Height))
+            // Select by reference, not index: a new tab shifted the indices once already
+            foreach (var (tab, name) in new[]
+                     {
+                         (form.RegistersTab, "registers"),
+                         (form.TabsControl.TabPages.Cast<TabPage>().First(t => t.Text == "Settings"), "settings"),
+                     })
             {
+                form.TabsControl.SelectedTab = tab;
+                // Pump while waiting: a bare Thread.Sleep starves the UI thread, so the
+                // BeginInvoke callbacks never run and the view keeps a pre-switch snapshot
+                var wait = System.Diagnostics.Stopwatch.StartNew();
+                while (wait.ElapsedMilliseconds < 1500)
+                {
+                    Application.DoEvents();
+                    Thread.Sleep(20);
+                }
+                using var bmp = new Bitmap(form.Width, form.Height);
                 form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
-                bmp.Save(PreviewPath("settings"), ImageFormat.Png);
+                bmp.Save(PreviewPath(name), ImageFormat.Png);
             }
 
             form.StartStopButton.PerformClick();
@@ -122,6 +133,7 @@ public class GridRenderTests
 
         Assert.True(File.Exists(PreviewPath("window")));
         Assert.True(File.Exists(PreviewPath("settings")));
+        Assert.True(File.Exists(PreviewPath("registers")));
     }
 
     [Fact]

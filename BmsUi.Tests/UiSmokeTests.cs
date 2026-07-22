@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using BmsUi;
+using BmsUi.Protocol;
 using BmsUi.Ui;
 using Xunit;
 
@@ -83,8 +84,9 @@ public class UiSmokeTests
             form.Show();
             Application.DoEvents();
             Assert.True(form.IsHandleCreated);
-            // Voltage / Temperature / Balance / Settings / Log — no device-writing "Config" tab
-            Assert.Equal(5, form.TabsControl.TabPages.Count);
+            // Voltage / Temperature / Balance / Registers / Settings / Log
+            // — no device-writing "Config" tab
+            Assert.Equal(6, form.TabsControl.TabPages.Count);
             Assert.DoesNotContain(form.TabsControl.TabPages.Cast<TabPage>(),
                                   p => p.Text.Contains("Config"));
             form.Close();
@@ -179,6 +181,43 @@ public class UiSmokeTests
             Assert.True(ContainsColor(bmp, Heatmap.WarningColor), "overtemperature warning was not drawn");
 
             host.Close();
+        });
+    }
+
+    /// <summary>
+    /// The sweep is opt-in, so the table only fills when its tab is selected. This drives the
+    /// whole path: tab selection -> worker flag -> sweep -> snapshot -> table.
+    /// </summary>
+    [Fact]
+    public void RegistersTab_FillsWhileVisible()
+    {
+        RunSta(() =>
+        {
+            using var form = new Form1();
+            form.Show();
+            Application.DoEvents();
+
+            form.TabsControl.SelectedTab = form.RegistersTab;
+            form.SimulationCheckBox.Checked = true;
+            form.StartStopButton.PerformClick();
+
+            string ChargerVoltageCell() => form.RegistersTable.Items
+                .Cast<ListViewItem>()
+                .First(i => (byte)i.Tag! == 5)
+                .SubItems[3].Text;
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 8000 && ChargerVoltageCell() == "—")
+            {
+                Application.DoEvents();
+                Thread.Sleep(20);
+            }
+
+            Assert.EndsWith("V", ChargerVoltageCell());
+            Assert.Equal(RegisterCatalog.All.Count, form.RegistersTable.Items.Count);
+
+            form.StartStopButton.PerformClick();
+            form.Close();
         });
     }
 }

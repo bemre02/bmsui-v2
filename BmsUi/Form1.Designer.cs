@@ -36,7 +36,9 @@ partial class Form1
     private TabControl tabs;
 
     // Tabs
-    private TabPage voltageTab, temperatureTab, balanceTab, settingsTab, logTab;
+    private TabPage voltageTab, temperatureTab, balanceTab, registersTab, settingsTab, logTab;
+    private RegisterTable registersTable;
+    private Label registersNoteLabel;
     private CellGridControl voltageGrid, temperatureGrid, balanceGrid;
     private Label tempNoteLabel, balanceSummary;
 
@@ -273,6 +275,20 @@ partial class Form1
         settingsTab.Controls.Add(settingsButtons);
         settingsTab.Controls.Add(settingsTable);
 
+        // ---------------- registers tab ----------------
+        registersTable = new RegisterTable { Dock = DockStyle.Fill };
+        registersNoteLabel = new Label
+        {
+            Dock = DockStyle.Bottom,
+            Height = 34,
+            Padding = new Padding(6, 4, 6, 0),
+            Text = "Read-only. Swept at 1 Hz only while this tab is visible. A row highlights " +
+                   "when its value changes — a register stuck at its init value stays dim.",
+        };
+        registersTab = new TabPage("Registers");
+        registersTab.Controls.Add(registersTable);
+        registersTab.Controls.Add(registersNoteLabel);
+
         // ---------------- log tab ----------------
         chooseFileButton = new Button { Text = "Choose file...", Location = new Point(20, 20), Width = 120 };
         chooseFileButton.Click += chooseFileButton_Click;
@@ -317,9 +333,10 @@ partial class Form1
         logTab.Controls.Add(logStatusLabel);
 
         tabs = new TabControl { Dock = DockStyle.Fill };
+        tabs.SelectedIndexChanged += tabs_SelectedIndexChanged;
         tabs.TabPages.AddRange(new[]
         {
-            voltageTab, temperatureTab, balanceTab, settingsTab, logTab,
+            voltageTab, temperatureTab, balanceTab, registersTab, settingsTab, logTab,
         });
 
         // ---------------- main split ----------------

@@ -40,6 +40,16 @@ public sealed class SimulatedTransport : ISerialTransport
         _registers[Reg.AllowedDisbalance] = 20;
         _registers[Reg.PrechargePercentage] = 95;
         _registers[Reg.PrechargeTimeout] = 5000;
+
+        // So the Registers tab is not a wall of zeros in simulation. Scales follow the
+        // firmware: voltages x100, currents x10, delays in milliseconds.
+        _registers[2] = 2;                                 // CHARGING_STATE = CHARGING
+        _registers[3] = 39000;                             // CHARGER_SET_VOLTAGE  390.00 V
+        _registers[4] = 60;                                // CHARGER_SET_CURRENT    6.0 A
+        _registers[31] = unchecked((ushort)(short)-60);    // CHARGE_CURRENT        -6.0 A
+        _registers[34] = unchecked((ushort)(short)-500);   // CHARGE_OVER_CURRENT_TRESHOLD
+        _registers[35] = 3500;                             // DISCHARGE_OVER_CURRENT_TRESHOLD
+        for (byte i = 36; i <= 40; i++) _registers[i] = 100;   // error delays, ms
     }
 
     public bool IsOpen { get; private set; }
@@ -136,6 +146,10 @@ public sealed class SimulatedTransport : ISerialTransport
         _registers[Reg.MaxSlaveTemp] = unchecked((ushort)(short)(5200));      // 52.00 C
         _registers[Reg.EstimatedSoc] =
             (ushort)(Math.Clamp((avgV - 3.30) / (4.15 - 3.30), 0, 1) * 10000);
+
+        // Charger tracks the pack while "charging", so those rows move in the table too
+        _registers[5] = (ushort)(packV * 100);                        // CHARGER_ACTUAL_VOLTAGE
+        _registers[6] = (ushort)(58 + 4 * Math.Sin(t / 5.0));         // CHARGER_ACTUAL_CURRENT
     }
 
     private byte[]? RespondToCommand(byte cmd) => cmd switch

@@ -165,6 +165,7 @@ public partial class Form1 : Form
         _worker.SnapshotReady += OnSnapshotReady;
         _worker.ConnectionLost += OnConnectionLost;
         _worker.Start();
+        _worker.IncludeAllRegisters = tabs.SelectedTab == registersTab;
 
         startButton.Text = "Stop";
         portCombo.Enabled = refreshButton.Enabled = simulationCheck.Enabled = false;
@@ -244,18 +245,33 @@ public partial class Form1 : Form
         catch (InvalidOperationException) { /* the handle is gone */ }
     }
 
+    /// <summary>
+    /// The register sweep is 33 extra transactions per second, so it only runs while the
+    /// Registers tab is actually on screen.
+    /// </summary>
+    private void tabs_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_worker is not null) _worker.IncludeAllRegisters = tabs.SelectedTab == registersTab;
+    }
+
     private void UpdateDashboard(BmsSnapshot? snapshot)
-        => dashboard.UpdateData(
+    {
+        dashboard.UpdateData(
             snapshot,
             new LinkHealth(_link?.CrcErrorCount ?? 0, _link?.TimeoutCount ?? 0,
                            _link?.IdMismatchCount ?? 0),
             _link is not null);
+
+        // Clear the register table on disconnect; stale values would look live
+        if (snapshot is null) registersTable.UpdateData(null);
+    }
 
     private void ApplySnapshot(BmsSnapshot s)
     {
         voltageGrid.UpdateData(s.CellVoltages, s.IsBalancing);
         temperatureGrid.UpdateData(s.CellTemps, s.IsBalancing);
         balanceGrid.UpdateData(s.CellVoltages, s.IsBalancing);
+        registersTable.UpdateData(s);
 
         UpdateDashboard(s);
 
@@ -382,6 +398,8 @@ public partial class Form1 : Form
     internal Label ConnectionStatusLabel => statusLabel;
     internal TabControl TabsControl => tabs;
     internal DashboardPanel Dashboard => dashboard;
+    internal RegisterTable RegistersTable => registersTable;
+    internal TabPage RegistersTab => registersTab;
     internal PictureBox LogoBox => logoBox;
 
     // ------------------------------------------------------------------ theme
