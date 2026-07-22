@@ -22,9 +22,22 @@ public sealed class RegisterTable : ListView
     private readonly bool[] _seen = new bool[HvProtocol.MaxRegisterIndexExclusive];
     private readonly long[] _changedAt = new long[HvProtocol.MaxRegisterIndexExclusive];
     private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private long _lastRender = long.MinValue;
+
+    /// <summary>
+    /// The table is fed at the UI update rate (up to 10 Hz) but the sweep behind it runs at
+    /// 1 Hz, so most rows cannot change that often. Repainting slower costs nothing and cuts
+    /// the redraw work by more than half.
+    /// </summary>
+    private const int MinRenderIntervalMs = 250;
 
     public RegisterTable()
     {
+        // ListView is not double buffered by default and repainting 47 rows at the UI
+        // update rate flickers visibly. The property is protected, which is one more reason
+        // this is a subclass rather than a plain ListView.
+        DoubleBuffered = true;
+
         View = View.Details;
         FullRowSelect = true;
         MultiSelect = false;
@@ -58,10 +71,14 @@ public sealed class RegisterTable : ListView
 
     public void UpdateData(BmsSnapshot? snapshot)
     {
+        long now = _clock.ElapsedMilliseconds;
+        bool clearing = snapshot is null;
+        if (!clearing && now - _lastRender < MinRenderIntervalMs) return;
+        _lastRender = now;
+
         BeginUpdate();
         try
         {
-            long now = _clock.ElapsedMilliseconds;
             foreach (ListViewItem item in Items)
             {
                 byte index = (byte)item.Tag!;
@@ -69,10 +86,10 @@ public sealed class RegisterTable : ListView
 
                 if (!valid)
                 {
-                    item.SubItems[2].Text = "—";
-                    item.SubItems[3].Text = "—";
-                    item.SubItems[4].Text = snapshot is null ? "" : "no answer";
-                    item.ForeColor = Theme.InkMuted;
+                    SetText(item, 2, "—");
+                    SetText(item, 3, "—");
+                    SetText(item, 4, clearing ? "" : "no answer");
+                    SetColor(item, Theme.InkMuted);
                     continue;
                 }
 
@@ -84,18 +101,30 @@ public sealed class RegisterTable : ListView
                     _seen[index] = true;
                 }
 
-                item.SubItems[2].Text = RegisterCatalog.FormatRaw(index, raw);
-                item.SubItems[3].Text = RegisterCatalog.FormatValue(index, raw);
-                item.SubItems[4].Text = RegisterCatalog.FormatNote(index, raw);
+                SetText(item, 2, RegisterCatalog.FormatRaw(index, raw));
+                SetText(item, 3, RegisterCatalog.FormatValue(index, raw));
+                SetText(item, 4, RegisterCatalog.FormatNote(index, raw));
 
                 bool fresh = _changedAt[index] != 0 &&
                              now - _changedAt[index] < HighlightFor.TotalMilliseconds;
-                item.ForeColor = fresh ? Theme.Warning : Theme.Ink;
+                SetColor(item, fresh ? Theme.Warning : Theme.Ink);
             }
         }
         finally
         {
             EndUpdate();
         }
+    }
+
+    // Assigning the same text still invalidates the item, so most of the 47 rows would be
+    // repainted every pass even though only a handful actually change.
+    private static void SetText(ListViewItem item, int column, string text)
+    {
+        if (item.SubItems[column].Text != text) item.SubItems[column].Text = text;
+    }
+
+    private static void SetColor(ListViewItem item, Color color)
+    {
+        if (item.ForeColor != color) item.ForeColor = color;
     }
 }
