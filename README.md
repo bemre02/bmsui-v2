@@ -47,7 +47,7 @@ dotnet test
 The fault panel deliberately shows active faults only: a static 15-row list filled half the
 screen and made a real fault harder to spot.
 
-**Tabs:** Voltage · Temperature · Balance · Settings · Log
+**Tabs:** Voltage · Temperature · Balance · Registers · Settings · Log
 
 > The application **never writes to the BMS** — it only reads. A threshold/config write
 > interface was deliberately left out; the Settings tab only changes how the UI looks.
@@ -132,6 +132,23 @@ the per-cell truncation and is a handy way to sanity-check the scaling.
 Numbers are written with `InvariantCulture` (decimal **point**), so the file survives being
 processed under a Turkish locale where the comma would break it. The on-screen display still
 follows the local settings.
+
+## Registers tab
+
+A read-only table of every readable MAINBUFFER index (0-40 and 44-49; 41/42/43 are shadowed by
+the `0x29`/`0x2A`/`0x2B` commands and cannot be read). Each row shows the raw value, the scaled
+value with its unit, and a note — decoded bits for FAULTS and OUTPUTS, the enum name for
+CHARGING_STATE.
+
+Unnamed indices are listed too, because "is the firmware writing anything to idx 19?" is
+exactly what this view is for. A row highlights briefly when its value changes, so a register
+the firmware actively writes looks different from one stuck at its init value.
+
+This is also where the charger data lives: the firmware fills `CHARGER_ACTUAL_VOLTAGE` and
+`CHARGER_ACTUAL_CURRENT` from the charger's CAN frames, and nothing else in the UI reads them.
+
+The sweep costs 33 transactions per second and runs **only while this tab is visible** — the
+indices the regular schedule already polls at 5-10 Hz are not asked for again.
 
 ## Built-in simulation (no board needed)
 
@@ -260,7 +277,7 @@ executed between poll rounds.
 
 ## Tests
 
-`dotnet test` — 134 tests:
+`dotnet test` — 151 tests:
 
 - CRC-8/SMBUS against known vectors (`"123456789"` → `0xF4`)
 - 194/14/4-byte frame parsing, signed temperature and current, rejection of a corrupt CRC and
@@ -277,5 +294,9 @@ executed between poll rounds.
   inverted ranges
 - UI smoke tests: does the main window open and lay out, does the grid draw the alarm /
   invalid / balancing states, is the logo still usable in a second window
+- Register catalog: names, scales and signedness; formatting asserted against
+  InvariantCulture so the tests do not depend on the machine's language
+- Register sweep: covers every readable index the regular schedule misses, never a shadowed
+  one, and costs nothing while the tab is closed
 - Rendering tests leave PNGs behind (`%TEMP%\bmsui_preview_*.png`) — grid, whole window and
   the Settings tab, handy for a visual check

@@ -118,8 +118,30 @@ Recorded so they are not rediscovered the hard way.
 - **`GraphicsPath.AddArc` connects to the previous point with a straight line**, and that line
   is diagonal. The straight edges of the battery silhouette have to be added explicitly, or
   the terminal becomes a triangle.
+- **A bare `Thread.Sleep` in a UI test starves the message pump.** `BeginInvoke` callbacks
+  never run, so the view keeps rendering a stale snapshot and the screenshot looks like the
+  feature is broken when it is not. Wait in a loop that calls `Application.DoEvents()`.
+- **Selecting a tab by index in a test breaks the moment a tab is inserted.** Select by
+  reference.
 
-## 6. Testing approach
+## 6. Firmware observations
+
+Found while designing the register inspector, recorded here because they are easy to
+rediscover the hard way and all three are firmware-side.
+
+- **`CHARGING_STATE` (idx 2) always reads `NO_CHARGER`.** The firmware writes the register at
+  `main.cpp:1586`, before the local `CHARGER` variable is assigned at `main.cpp:1665`, and
+  never writes it again. Moving the write to the end of `ChargeControl_Task` fixes it. Until
+  then the UI cannot use it to tell whether charging is in progress.
+- **`VCUflag` latches and is never cleared** (`main.cpp:509`). A single VCU frame on FDCAN2
+  disables `ChargeControl_Task` until reset, so the charger registers stop updating even after
+  the VCU is unplugged. A timeout on the last VCU frame would let the mode selection recover
+  on its own.
+- **`OPEN_CIRCUIT_VOLTAGE` (18) and `POWER` (41) are never written** by the firmware. Index 41
+  is unreadable anyway, being shadowed by the voltage command, which is why the UI computes
+  power as `V × I` on the host.
+
+## 7. Testing approach
 
 The protocol layer is covered by unit tests, but two things carry more weight than the rest:
 
