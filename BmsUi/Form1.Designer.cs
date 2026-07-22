@@ -332,16 +332,17 @@ partial class Form1
         logTab.Controls.Add(logEnabledCheck);
         logTab.Controls.Add(logStatusLabel);
 
-        tabs = new TabControl { Dock = DockStyle.Fill };
+        tabs = new ThemedTabControl { Dock = DockStyle.Fill };
         tabs.SelectedIndexChanged += tabs_SelectedIndexChanged;
         tabs.TabPages.AddRange(new[]
         {
             voltageTab, temperatureTab, balanceTab, registersTab, settingsTab, logTab,
         });
 
-        // A TabPage carries 3 px of padding its docked child cannot cover, and its default
-        // background is SystemColors.Control. Left alone that draws a white ring around the
-        // content of every tab.
+        // A TabPage carries 3 px of padding its docked child cannot cover, so its own
+        // background is visible as a ring around the content of every tab. ThemedTabControl
+        // now paints that area too, but the page still owns the surface and is given the
+        // colour explicitly rather than left on SystemColors.Control.
         foreach (TabPage page in tabs.TabPages) page.BackColor = Theme.Card;
 
         // ---------------- main split ----------------

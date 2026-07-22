@@ -131,6 +131,12 @@ Recorded so they are not rediscovered the hard way.
 - **A `TabPage` has 3 px of padding a docked child cannot cover**, and its background defaults
   to `SystemColors.Control`. Every tab in the application was drawing a white ring around its
   own content until the pages were given a themed `BackColor`.
+- **`DrawToBitmap` on a child control does not compose the way the screen does.** Asking the
+  `TabControl` or a `TabPage` to draw itself produced a clean image while the running window
+  still showed the white ring, so a test written against those surfaces passed against the
+  bug it was written for. Only the whole `Form` reproduces it — and that render includes the
+  title bar, which is legitimately light, so the assertion has to be limited to a region.
+  Any test that asserts on rendered pixels is worth running once against the unfixed code.
 - **Scroll bars are drawn by the system**, so owner-drawing a `ListView` leaves a light grey
   bar against a dark table. `SetWindowTheme(handle, "DarkMode_Explorer", null)` reaches it.
   The theme name is undocumented and is a no-op on Windows versions that do not know it, so

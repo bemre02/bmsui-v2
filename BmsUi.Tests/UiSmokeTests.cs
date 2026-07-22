@@ -26,6 +26,30 @@ public class UiSmokeTests
         if (failure is not null) throw new Xunit.Sdk.XunitException($"UI failure: {failure}");
     }
 
+    /// <summary>
+    /// Every pixel of a region, via LockBits — GetPixel over a window-sized area is slow
+    /// enough to be felt, and a 3 px ring is too thin to sample every other pixel.
+    /// </summary>
+    private static bool ContainsColor(Bitmap bmp, Color target, Rectangle region)
+    {
+        region.Intersect(new Rectangle(0, 0, bmp.Width, bmp.Height));
+        Assert.False(region.IsEmpty, "region falls outside the bitmap");
+
+        var data = bmp.LockBits(region, System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                                System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        try
+        {
+            var pixels = new int[data.Stride / 4 * data.Height];
+            System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+
+            int wanted = target.ToArgb() & 0xFFFFFF;
+            foreach (int pixel in pixels)
+                if ((pixel & 0xFFFFFF) == wanted) return true;
+            return false;
+        }
+        finally { bmp.UnlockBits(data); }
+    }
+
     private static bool ContainsColor(Bitmap bmp, Color target)
     {
         for (int y = 0; y < bmp.Height; y += 2)
@@ -181,6 +205,46 @@ public class UiSmokeTests
             Assert.True(ContainsColor(bmp, Heatmap.WarningColor), "overtemperature warning was not drawn");
 
             host.Close();
+        });
+    }
+
+    /// <summary>
+    /// The tab strip, the register table and the cell grid are all owner-drawn, and a throw
+    /// inside a paint handler leaves a blank control rather than failing the build.
+    ///
+    /// SystemColors.Control is what the unthemed chrome was drawn in: the tab buttons, and
+    /// the ring of TabPage padding no docked child can cover. Neither may come back.
+    /// </summary>
+    [Fact]
+    public void EveryTab_PaintsWithNoSystemChromeLeft()
+    {
+        RunSta(() =>
+        {
+            using var form = new Form1();
+            form.Size = new Size(1400, 900);
+            form.Show();
+            Application.DoEvents();
+
+            // Only the composed window shows it: a TabPage's own background does not appear
+            // when the page or the tab control is asked to draw itself in isolation.
+            foreach (TabPage page in form.TabsControl.TabPages)
+            {
+                form.TabsControl.SelectedTab = page;
+                Application.DoEvents();
+
+                using var bmp = new Bitmap(form.Width, form.Height);
+                form.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
+
+                // DrawToBitmap of a form includes the title bar, which is legitimately light
+                var onScreen = form.TabsControl.RectangleToScreen(form.TabsControl.ClientRectangle);
+                var region = new Rectangle(onScreen.X - form.Left, onScreen.Y - form.Top,
+                                           onScreen.Width, onScreen.Height);
+
+                Assert.False(ContainsColor(bmp, SystemColors.Control, region),
+                             $"the {page.Text} tab still paints unthemed system chrome");
+            }
+
+            form.Close();
         });
     }
 
