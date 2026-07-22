@@ -53,7 +53,9 @@ kaplayıp gerçek bir hatanın göze batmasını engelliyordu.
 
 ## Hücre görünümü
 
-Her hücre çerçevesiz dolu bir kutudur; yazı boyutu pencere boyutuyla ölçeklenir.
+Her hücre **dikey bir pil silueti** olarak çizilir (gövde + üstte kutup); yazı boyutu pencere
+boyutuyla ölçeklenir. Gövde ve kutup tek bir path olarak kurulur, böylece alarm konturu iç
+birleşim çizgilerini değil siluetin dış hattını takip eder.
 
 | Gösterim | Anlamı |
 |---|---|

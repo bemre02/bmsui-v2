@@ -139,10 +139,13 @@ public sealed class CellGridControl : Control
     }
 
     /// <summary>
-    /// Hucre kutusu: cerceve yok — cerceve 96 kez tekrarlandiginda bilgi tasimadan
-    /// dolgu alanini yiyor. Dolgu degeri renkle kodlar; sayi zaten uzerinde yazili.
-    /// Kose rozetleri: indeks (sol ust), genel ortalama oku (sag ust), balans "B"
-    /// (sol alt), segment sigma isareti (sag alt).
+    /// Hücre bir DİKEY PİL silueti olarak çizilir: gövde + üstte kutup.
+    ///
+    /// Gövde ve kutup TEK bir path olarak kurulur; ayrı ayrı çizilseydi alarm konturu
+    /// ikisinin birleştiği iç kenarları da çizer ve siluet bozulurdu.
+    ///
+    /// İçerik gövdeye yerleşir: indeks (sol üst), genel ortalama oku (sağ üst),
+    /// balans "B" (sol alt), segment sigma işareti (sağ alt).
     /// </summary>
     private void DrawCellTile(Graphics g, RectangleF tile, int index, double value,
                               CellState state, bool balancing, CellMark mark, Font valueFont,
@@ -152,42 +155,82 @@ public sealed class CellGridControl : Control
 
         Color fill = Heatmap.Fill(state, value, ScaleLow, ScaleHigh, Ramp);
         Color ink = Heatmap.InkOn(fill);
-        float radius = Math.Min(5f, Math.Min(tile.Width, tile.Height) * 0.18f);
 
-        using (var path = RoundedRect(tile, radius))
+        using (var path = BatteryPath(tile, out _))
         using (var brush = new SolidBrush(fill))
             g.FillPath(brush, path);
 
-        // Indeks kutunun icinde, sol ustte — disarida dursa dikey alani bosa harciyordu
+        BatteryPath(tile, out var body).Dispose();
+
+        // Indeks govdenin sol ustunde
         using (var indexBrush = new SolidBrush(Color.FromArgb(235, ink)))
-            g.DrawString(index.ToString(), indexFont, indexBrush, tile.X + 3f, tile.Y + 1f);
+            g.DrawString(index.ToString(), indexFont, indexBrush, body.X + 3f, body.Y + 1f);
 
         // Deger — alt kosedeki rozetlere yer birakacak sekilde ortalanir
         using (var inkBrush = new SolidBrush(ink))
             g.DrawString(FormatValue(value, state), valueFont, inkBrush,
-                         new RectangleF(tile.X, tile.Y + tile.Height * 0.10f, tile.Width,
-                                        tile.Height * 0.68f), centered);
+                         new RectangleF(body.X, body.Y + body.Height * 0.10f, body.Width,
+                                        body.Height * 0.68f), centered);
 
-        if (balancing) DrawBalanceBadge(g, tile, markFont, ink);
+        if (balancing) DrawBalanceBadge(g, body, markFont, ink);
 
         if (state != CellState.Invalid)
-            DrawStatMarks(g, tile, mark, ink, markFont, state == CellState.Alarm);
+            DrawStatMarks(g, body, mark, ink, markFont, state == CellState.Alarm);
 
-        // Alarm: dolgu degeri gostermeye devam eder; alarm kalin kontur + ikonla gelir
-        // Kontur ⚠ ikonuyla AYNI amber renkte — mürekkep rengiyle çizilince açık
-        // dolgularda siyahlaşıp "alarm" değil "çizim hatası" gibi duruyordu.
-        // Amberin altına koyu bir kılıf: amber dolgu üzerinde de sınır görünür kalsın.
+        // Alarm: dolgu degeri gostermeye devam eder; alarm kontur + ikonla gelir.
+        // Kontur ⚠ ikonuyla AYNI amber renkte; altindaki koyu kilif sayesinde amber
+        // dolgu uzerinde de sinir gorunur kalir. Kontur pil siluetini takip eder.
         if (state == CellState.Alarm)
         {
-            float w = Math.Max(2f, tile.Height * 0.045f);
+            float w = Math.Max(2f, tile.Height * 0.042f);
             using (var casing = new Pen(Color.FromArgb(190, 25, 25, 25), w + 1.8f))
-            using (var path = RoundedRect(tile, radius))
+            using (var path = BatteryPath(tile, out _))
                 g.DrawPath(casing, path);
             using (var pen = new Pen(Heatmap.WarningColor, w))
-            using (var path = RoundedRect(tile, radius))
+            using (var path = BatteryPath(tile, out _))
                 g.DrawPath(pen, path);
-            DrawWarningBadge(g, tile);
+            DrawWarningBadge(g, body);
         }
+    }
+
+    /// <summary>
+    /// Dikey pil silueti: yuvarlatilmis govde + ust kenarin ortasinda kutup.
+    /// Kose yaylari arasindaki duz kenarlar ACIK cizgilerle veriliyor; AddArc'in
+    /// kendi bagladigi cizgiler capraz olur ve kutup ucgene doner.
+    /// </summary>
+    private static GraphicsPath BatteryPath(RectangleF cell, out RectangleF body)
+    {
+        float nubH = Math.Clamp(cell.Height * 0.075f, 3f, 10f);
+        body = new RectangleF(cell.X, cell.Y + nubH, cell.Width, cell.Height - nubH);
+
+        var path = new GraphicsPath();
+        if (body.Width < 16f || body.Height < 16f)
+        {
+            path.AddRectangle(body);
+            return path;
+        }
+
+        float r = Math.Min(5f, Math.Min(body.Width, body.Height) * 0.18f);
+        float d = r * 2f;
+        float nubW = Math.Clamp(body.Width * 0.32f, 10f, 36f);
+        float nubLeft = body.X + (body.Width - nubW) / 2f;
+        float nubRight = nubLeft + nubW;
+        float nr = Math.Min(nubW * 0.28f, nubH * 0.7f);
+        float nd = nr * 2f;
+
+        path.AddArc(body.X, body.Y, d, d, 180, 90);                 // govde sol ust
+        path.AddLine(body.X + r, body.Y, nubLeft, body.Y);          // govde ustu
+        path.AddLine(nubLeft, body.Y, nubLeft, cell.Y + nr);        // kutup sol kenari
+        path.AddArc(nubLeft, cell.Y, nd, nd, 180, 90);              // kutup sol ust
+        path.AddLine(nubLeft + nr, cell.Y, nubRight - nr, cell.Y);  // kutup ustu
+        path.AddArc(nubRight - nd, cell.Y, nd, nd, 270, 90);        // kutup sag ust
+        path.AddLine(nubRight, cell.Y + nr, nubRight, body.Y);      // kutup sag kenari
+        path.AddLine(nubRight, body.Y, body.Right - r, body.Y);     // govde ustu
+        path.AddArc(body.Right - d, body.Y, d, d, 270, 90);         // govde sag ust
+        path.AddArc(body.Right - d, body.Bottom - d, d, d, 0, 90);  // govde sag alt
+        path.AddArc(body.X, body.Bottom - d, d, d, 90, 90);         // govde sol alt
+        path.CloseFigure();
+        return path;
     }
 
     /// <summary>
