@@ -3,27 +3,31 @@ namespace BmsUi.Ui;
 public enum CellState
 {
     Normal,
-    /// <summary>Alarm esiginin altinda ya da ustunde — status rengi + uyari ikonu.</summary>
+    /// <summary>Alarm eşiğinin altında ya da üstünde — kalın kontur + uyarı ikonu.</summary>
     Alarm,
     /// <summary>Eksik / stale hucre (0.00 V gibi).</summary>
     Invalid,
 }
 
 /// <summary>
-/// Buyukluk icin TEK hue'lu sequential ramp (koyu zeminde koyu=dusuk, acik=yuksek).
-/// Alarm bir ramp adimi DEGIL, ayri bir status rengidir ve her zaman uyari ikonuyla
-/// birlikte cizilir — renk tek basina anlam tasimaz.
+/// Değer → renk eşlemesi. Dolgu her zaman büyüklüğü taşır; alarm dolguyu değiştirmez,
+/// kalın kontur + uyarı ikonuyla gösterilir — böylece renk tek başına anlam taşımaz ve
+/// eşik yanlış ayarlansa bile ızgara okunur kalır.
 /// </summary>
 public static class Heatmap
 {
-    // Sequential mavi ramp (dogrulanmis referans palet). Dizi dusuk -> yuksek sirali;
-    // koyu zeminde en dusuk deger zemine dogru cekilsin diye koyudan aciga.
+    /// <summary>
+    /// Voltaj: düşük = kırmızı, orta = sarı, yüksek = yeşil (BMS operatörünün beklediği
+    /// okuma). Kırmızı-yeşil, renk körlüğü için en riskli çifttir; bu yüzden değer her
+    /// hücrede yazılı, alt çubuk aynı bilgiyi UZUNLUKLA veriyor ve eşik dışı hücreler
+    /// ayrıca uyarı ikonu alıyor — renk tek başına hiçbir şey taşımıyor.
+    /// </summary>
     public static readonly Color[] VoltageRamp =
     {
-        FromHex(0x0D366B), FromHex(0x104281), FromHex(0x184F95), FromHex(0x1C5CAB),
-        FromHex(0x256ABF), FromHex(0x2A78D6), FromHex(0x3987E5), FromHex(0x5598E7),
-        FromHex(0x6DA7EC), FromHex(0x86B6EF), FromHex(0x9EC5F4), FromHex(0xB7D3F6),
-        FromHex(0xCDE2FB),
+        FromHex(0x7F1D1D), FromHex(0x991B1B), FromHex(0xB91C1C), FromHex(0xDC2626),
+        FromHex(0xE85D25), FromHex(0xF97316), FromHex(0xF59E0B), FromHex(0xEAB308),
+        FromHex(0xC9C520), FromHex(0x9DC22A), FromHex(0x6FB93A), FromHex(0x45AC49),
+        FromHex(0x22C55E),
     };
 
     // Sicaklik icin tek hue'lu amber ramp — voltajla ayni ekranda gorunmedigi icin
@@ -70,14 +74,18 @@ public static class Heatmap
          : (t < alarmLow || t > alarmHigh) ? CellState.Alarm
          : CellState.Normal;
 
-    /// <summary>Dolgu rengi: alarm -> status, gecersiz -> gri, aksi halde ramp adimi.</summary>
+    /// <summary>
+    /// Dolgu rengi HER ZAMAN degeri gosterir; yalnizca gecersiz hucre griye duser.
+    ///
+    /// Alarm dolguyu DEGISTIRMEZ: voltaj ramp'inin dusuk ucu zaten kirmizi oldugu icin
+    /// kirmizi bir alarm dolgusu "dusuk ama normal" hucreyle karisirdi. Ustelik esik
+    /// yanlis ayarlaninca tum izgara tek renge duserdi. Alarm bunun yerine kalin kontur
+    /// + uyari ikonu ile gosterilir.
+    /// </summary>
     public static Color Fill(CellState state, double value, double scaleLow, double scaleHigh,
-                             Color[] ramp) => state switch
-    {
-        CellState.Alarm => AlarmColor,
-        CellState.Invalid => InvalidColor,
-        _ => Sequential(value, scaleLow, scaleHigh, ramp),
-    };
+                             Color[] ramp) => state == CellState.Invalid
+        ? InvalidColor
+        : Sequential(value, scaleLow, scaleHigh, ramp);
 
     /// <summary>Dolgunun uzerine yazilacak metin rengi — acik zeminde koyu murekkep.</summary>
     public static Color InkOn(Color fill)

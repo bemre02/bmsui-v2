@@ -150,7 +150,7 @@ public class UiSmokeTests
             using var bmp = new Bitmap(grid.Width, grid.Height);
             grid.DrawToBitmap(bmp, new Rectangle(0, 0, grid.Width, grid.Height));
 
-            Assert.True(ContainsColor(bmp, Heatmap.AlarmColor), "Alarm rengi cizilmedi");
+            Assert.True(ContainsColor(bmp, Heatmap.WarningColor), "Uyari ikonu cizilmedi");
             Assert.True(ContainsColor(bmp, Heatmap.InvalidColor), "Gecersiz hucre rengi cizilmedi");
             Assert.True(ContainsColor(bmp, Heatmap.BalanceRing), "Balans cercevesi cizilmedi");
 
@@ -176,7 +176,7 @@ public class UiSmokeTests
 
             using var bmp = new Bitmap(grid.Width, grid.Height);
             grid.DrawToBitmap(bmp, new Rectangle(0, 0, grid.Width, grid.Height));
-            Assert.True(ContainsColor(bmp, Heatmap.AlarmColor), "Asiri sicaklik alarmi cizilmedi");
+            Assert.True(ContainsColor(bmp, Heatmap.WarningColor), "Asiri sicaklik uyarisi cizilmedi");
 
             host.Close();
         });

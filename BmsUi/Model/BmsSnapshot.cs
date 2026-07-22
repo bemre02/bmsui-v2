@@ -63,6 +63,9 @@ public sealed class BmsSnapshot
     public CellStat VoltageStats => CellStats.Voltage(CellVoltages);
     public CellStat TempStats => CellStats.Temperature(CellTemps);
 
+    /// <summary>Genel ortalama, segment bazlı σ ve hücre işaretleri (96 eleman, ucuz).</summary>
+    public CellAnalysis VoltageAnalysis => CellAnalysis.Compute(CellVoltages, static v => v >= 0.5);
+
     /// <summary>cell: 0..95 lineer indeks (segment*16 + hucre).</summary>
     public bool IsBalancing(int cell)
     {

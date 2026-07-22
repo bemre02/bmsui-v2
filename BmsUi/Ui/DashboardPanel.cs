@@ -124,6 +124,11 @@ public sealed class DashboardPanel : Control
                         volt.HasData ? $"{(volt.Max - volt.Min) * 1000:F0} mV" : "—", null,
                         label, value, caption);
 
+        var analysis = _snapshot?.VoltageAnalysis;
+        y = DrawStatRow(g, x, y, w, "Std sapma",
+                        analysis is { HasData: true } ? $"{analysis.StdDev * 1000:F1} mV" : "—",
+                        null, label, value, caption);
+
         y += 4f;
         y = DrawStatRow(g, x, y, w, "Min sıcaklık", temp.HasData ? $"{temp.Min:F1} °C" : "—",
                         temp.HasData ? $"#{temp.MinIndex}" : null, label, value, caption);

@@ -38,7 +38,7 @@ dotnet test
 | Bölüm | İçerik |
 |---|---|
 | PAKET | Paket voltajı büyük punto + akım / güç / SoC / maks slave sıcaklığı kutuları |
-| HÜCRELER | Min-maks-ortalama voltaj ve sıcaklık, hangi hücre olduğu (`#42`), ve **fark (maks−min)** mV cinsinden — dengesizlik için tek bakışta okunacak sayı |
+| HÜCRELER | Min-maks-ortalama voltaj ve sıcaklık, hangi hücre olduğu (`#42`), **fark (maks−min)** ve **standart sapma** mV cinsinden — dengesizlik için tek bakışta okunacak sayılar |
 | ÇIKIŞLAR | AIR / PRE / ERR durum hapları |
 | HATALAR | Yalnızca **aktif** hatalar listelenir; hiçbiri yoksa yeşil "Aktif hata yok" |
 | (alt şerit) | CRC / zaman aşımı / kimlik sayaçları, veri yaşı, bağlantı durumu |
@@ -57,25 +57,36 @@ Her hücre çerçevesiz dolu bir kutudur; yazı boyutu pencere boyutuyla ölçek
 
 | Gösterim | Anlamı |
 |---|---|
-| Dolgu rengi (tek ton, koyudan açığa) | Değerin renk skalası içindeki yeri |
+| Dolgu rengi | **Voltaj:** düşük = kırmızı, orta = sarı, yüksek = yeşil. **Sıcaklık:** düşük = koyu, yüksek = parlak amber (yüksek sıcaklık iyi bir şey olmadığı için yeşil kullanılmaz) |
 | **Alt çubuk** | Aynı değerin uzunlukla kodlanmış hâli |
-| Kırmızı dolgu + **⚠ uyarı ikonu** | Değer alarm eşiklerinin dışında |
+| Kalın kontur + **⚠ ikonu** | Değer alarm eşiklerinin dışında |
+| **▲ / ▼** (sağ üst) | 96 hücrenin genel ortalamasının üstünde / altında |
+| **σ+ / σ−** (sağ alt) | Kendi segmentinin ortalamasından ±1σ'dan fazla sapmış |
 | Gri dolgu + "—" | Hücre geçersiz/stale (0.00 V) |
 | Sol kenarda altın şerit | Hücre balansta |
 | Sol üstteki sayı | Lineer hücre indeksi — sol paneldeki min/maks indeksleriyle aynı numaralandırma |
 
-Çerçeve ya da sembol kullanılmaz: 96 kez tekrarlanan bir sembol bilgi taşımadan dolgu alanını
-yer. Onun yerine **alt çubuk** var — paket dengeliyken bütün hücreler neredeyse aynı renge
-düşer ama çubuk uzunluğu farkı hâlâ gösterir (uzunluk, renkten çok daha keskin ayırt edilen bir
-kanaldır). Renk ise **tek hue'lu sequential ramp**'tir; alarm ramp'in bir adımı değil, ayrı bir
-status rengidir ve **her zaman ikonla birlikte** çizilir — renk körlüğü olan biri için de bilgi
-kaybolmaz. Izgaranın altındaki şeritte skala ve aktif alarm eşikleri yazar.
+**Neden dört ayrı kanal?** Renk tek başına yeterli değil: kırmızı-yeşil renk körlüğü için en
+riskli çift, üstelik paket dengeliyken bütün hücreler aynı tona düşer. Bu yüzden değer her
+hücrede yazılı, alt çubuk aynı bilgiyi **uzunlukla** veriyor (uzunluk renkten çok daha keskin
+ayırt edilir) ve eşik dışı hücreler ayrıca ikon alıyor.
+
+**Alarm dolguyu değiştirmez.** Voltaj skalasının düşük ucu zaten kırmızı olduğu için kırmızı
+bir alarm dolgusu "düşük ama normal" hücreyle karışırdı; ayrıca eşik yanlış ayarlanınca bütün
+ızgara tek renge düşer ve hiçbir hücre diğerinden ayırt edilemez hâle gelirdi. Alarm bunun
+yerine kalın kontur + ⚠ ile gösterilir, dolgu değeri göstermeye devam eder.
+
+**İki istatistik işareti neden ayrı?** ▲/▼ paketin bütününe göre konumu, σ± ise hücrenin kendi
+komşularından ayrışıp ayrışmadığını söyler. Bir segment tümüyle paket ortalamasının altındaysa,
+o segmentin en yüksek hücresi "σ+" ama yine de "▼" olabilir — ikisi farklı soruların cevabı.
+Segment σ'sı 16 hücrenin tamamı üzerinden (popülasyon) hesaplanır. Paket geneli standart sapma
+sol panelde mV cinsinden yazar.
 
 ## Ayarlar sekmesi (yalnızca görünüm)
 
 Voltaj ve sıcaklık için ayrı ayrı:
 
-- **Alarm alt/üst eşiği** — dışına çıkan hücre kırmızı + uyarı ikonu alır
+- **Alarm alt/üst eşiği** — dışına çıkan hücre kalın kontur + uyarı ikonu alır
 - **Renk skalası alt/üst ucu** — heatmap'in iki ucu. Paket dar bir aralıkta çalışırken
   (örn. 3.87-4.02 V) skalayı daraltmak hücreler arası farkı görünür kılar.
 
@@ -207,7 +218,7 @@ turları arasında işlenir.
 
 ## Testler
 
-`dotnet test` — 119 test:
+`dotnet test` — 131 test:
 
 - CRC-8/SMBUS bilinen vektörler (`"123456789"` → `0xF4`)
 - 194/14/4 baytlık çerçeve ayrıştırma, işaretli sıcaklık ve akım, bozuk CRC ve yanlış kimlik reddi

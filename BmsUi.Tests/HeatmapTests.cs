@@ -4,13 +4,26 @@ using Xunit;
 public class HeatmapTests
 {
     [Fact]
-    public void VoltageRamp_IsMonotonicallyLighter()
+    public void VoltageRamp_RunsRedToYellowToGreen()
     {
-        // Sequential ramp tek hue + monoton aciklik olmali (CVD-guvenli olmasinin sarti)
+        // BMS okumasi: dusuk = kirmizi, orta = sari, yuksek = yesil
         var ramp = Heatmap.VoltageRamp;
-        for (int i = 1; i < ramp.Length; i++)
-            Assert.True(Luminance(ramp[i]) > Luminance(ramp[i - 1]),
-                        $"adim {i} bir oncekinden acik degil");
+        var low = ramp[0];
+        var mid = ramp[ramp.Length / 2];
+        var high = ramp[^1];
+
+        Assert.True(low.R > low.G && low.R > low.B, "dusuk uc kirmizi degil");
+        Assert.True(mid.R > 150 && mid.G > 130 && mid.B < 100, "orta sari degil");
+        Assert.True(high.G > high.R && high.G > high.B, "yuksek uc yesil degil");
+    }
+
+    [Fact]
+    public void VoltageRamp_GetsGreenerAsValueRises()
+    {
+        var ramp = Heatmap.VoltageRamp;
+        var low = Heatmap.Sequential(3.25, 3.20, 4.15, ramp);
+        var high = Heatmap.Sequential(4.10, 3.20, 4.15, ramp);
+        Assert.True(high.G - high.R > low.G - low.R, "yuksek deger daha yesil degil");
     }
 
     [Fact]
@@ -38,11 +51,11 @@ public class HeatmapTests
     }
 
     [Fact]
-    public void Sequential_HigherValueIsLighter_OnDarkSurface()
+    public void TemperatureRamp_HigherValueIsLighter_OnDarkSurface()
     {
-        var ramp = Heatmap.VoltageRamp;
-        var low = Heatmap.Sequential(3.30, 3.20, 4.15, ramp);
-        var high = Heatmap.Sequential(4.10, 3.20, 4.15, ramp);
+        var ramp = Heatmap.TemperatureRamp;
+        var low = Heatmap.Sequential(18.0, 15.0, 60.0, ramp);
+        var high = Heatmap.Sequential(58.0, 15.0, 60.0, ramp);
         Assert.True(Luminance(high) > Luminance(low));
     }
 
@@ -71,11 +84,23 @@ public class HeatmapTests
     }
 
     [Fact]
-    public void Fill_AlarmUsesStatusColor_NotARampStep()
+    public void Fill_AlarmKeepsRampColor_SoGridStaysReadable()
     {
-        var fill = Heatmap.Fill(CellState.Alarm, 4.30, 3.20, 4.15, Heatmap.VoltageRamp);
-        Assert.Equal(Heatmap.AlarmColor, fill);
-        Assert.DoesNotContain(fill, Heatmap.VoltageRamp);
+        // Alarm dolguyu ele gecirseydi, esik yanlis ayarlaninca tum izgara tek renge
+        // duser ve hicbir hucre digerinden ayirt edilemezdi
+        var alarmFill = Heatmap.Fill(CellState.Alarm, 4.30, 3.20, 4.15, Heatmap.VoltageRamp);
+        var normalFill = Heatmap.Fill(CellState.Normal, 4.30, 3.20, 4.15, Heatmap.VoltageRamp);
+        Assert.Equal(normalFill, alarmFill);
+        Assert.Contains(alarmFill, Heatmap.VoltageRamp);
+    }
+
+    [Fact]
+    public void Fill_LowAlarmAndHighAlarm_AreDistinguishable()
+    {
+        // Ikisi de alarm ama biri kirmizi ucta biri yesil ucta olmali
+        var low = Heatmap.Fill(CellState.Alarm, 2.00, 3.20, 4.15, Heatmap.VoltageRamp);
+        var high = Heatmap.Fill(CellState.Alarm, 4.50, 3.20, 4.15, Heatmap.VoltageRamp);
+        Assert.NotEqual(low, high);
     }
 
     [Fact]
@@ -86,8 +111,12 @@ public class HeatmapTests
     [Fact]
     public void InkOn_PicksReadableContrast()
     {
-        Assert.Equal(Color.White, Heatmap.InkOn(Heatmap.VoltageRamp[0]));            // koyu dolgu
-        Assert.Equal(Heatmap.FromHex(0x0B0B0B), Heatmap.InkOn(Heatmap.VoltageRamp[^1])); // acik dolgu
+        // Koyu kirmizi dolgu -> beyaz yazi
+        Assert.Equal(Color.White, Heatmap.InkOn(Heatmap.VoltageRamp[0]));
+        // Parlak sari dolgu -> koyu yazi (beyaz okunmaz)
+        Assert.Equal(Heatmap.FromHex(0x0B0B0B), Heatmap.InkOn(Heatmap.FromHex(0xEAB308)));
+        // Acik krem dolgu -> koyu yazi
+        Assert.Equal(Heatmap.FromHex(0x0B0B0B), Heatmap.InkOn(Heatmap.TemperatureRamp[^1]));
     }
 
     private static double Luminance(Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
