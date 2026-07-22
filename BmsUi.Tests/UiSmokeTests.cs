@@ -201,9 +201,10 @@ public class UiSmokeTests
             form.SimulationCheckBox.Checked = true;
             form.StartStopButton.PerformClick();
 
-            string ChargerVoltageCell() => form.RegistersTable.Items
-                .Cast<ListViewItem>()
-                .First(i => (byte)i.Tag! == 5)
+            // Tag is the register index on data rows and the title on the section bands
+            var rows = form.RegistersTable.Items.Cast<ListViewItem>();
+            string ChargerVoltageCell() => rows
+                .First(i => i.Tag is byte b && b == 5)
                 .SubItems[3].Text;
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -214,7 +215,12 @@ public class UiSmokeTests
             }
 
             Assert.EndsWith("V", ChargerVoltageCell());
-            Assert.Equal(RegisterCatalog.All.Count, form.RegistersTable.Items.Count);
+            Assert.Equal(RegisterCatalog.All.Count, rows.Count(i => i.Tag is byte));
+
+            // One band per group, and every register sits under one
+            Assert.Equal(RegisterCatalog.All.Select(d => d.Group).Distinct().Count(),
+                         rows.Count(i => i.Tag is string));
+            Assert.IsType<string>(form.RegistersTable.Items[0].Tag);
 
             form.StartStopButton.PerformClick();
             form.Close();

@@ -128,6 +128,13 @@ Recorded so they are not rediscovered the hard way.
   made it worse and are worth remembering separately: assigning a `SubItem.Text` invalidates
   the item even when the text is unchanged, and the view was fed at the UI update rate rather
   than the rate its data can actually change at.
+- **A `TabPage` has 3 px of padding a docked child cannot cover**, and its background defaults
+  to `SystemColors.Control`. Every tab in the application was drawing a white ring around its
+  own content until the pages were given a themed `BackColor`.
+- **Scroll bars are drawn by the system**, so owner-drawing a `ListView` leaves a light grey
+  bar against a dark table. `SetWindowTheme(handle, "DarkMode_Explorer", null)` reaches it.
+  The theme name is undocumented and is a no-op on Windows versions that do not know it, so
+  nothing may depend on it having worked.
 
 ## 6. Firmware observations
 

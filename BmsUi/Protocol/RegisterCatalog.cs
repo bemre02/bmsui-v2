@@ -43,13 +43,12 @@ public static class RegisterCatalog
     /// table matches the rest of the window, but a test asserting on "374.41" would then pass
     /// or fail depending on the machine's language.
     /// </summary>
+    /// <summary>
+    /// The unscaled number, always decimal. Bit masks get their hex from FormatValue, so
+    /// repeating it here would print the same thing twice on one row.
+    /// </summary>
     public static string FormatRaw(byte index, ushort raw, IFormatProvider? culture = null)
-    {
-        var d = Describe(index);
-        return d.IsBitMask
-            ? $"{raw}  (0x{raw:X4})"
-            : raw.ToString(culture ?? CultureInfo.CurrentCulture);
-    }
+        => raw.ToString(culture ?? CultureInfo.CurrentCulture);
 
     public static string FormatValue(byte index, ushort raw, IFormatProvider? culture = null)
     {

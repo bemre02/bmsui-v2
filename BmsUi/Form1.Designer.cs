@@ -282,8 +282,8 @@ partial class Form1
             Dock = DockStyle.Bottom,
             Height = 34,
             Padding = new Padding(6, 4, 6, 0),
-            Text = "Read-only. Swept at 1 Hz only while this tab is visible. A row highlights " +
-                   "when its value changes — a register stuck at its init value stays dim.",
+            Text = "Read-only. Swept at 1 Hz only while this tab is visible. The amber bar marks " +
+                   "a register that changed in the last second — one stuck at its init value never lights.",
         };
         registersTab = new TabPage("Registers");
         registersTab.Controls.Add(registersTable);
@@ -338,6 +338,11 @@ partial class Form1
         {
             voltageTab, temperatureTab, balanceTab, registersTab, settingsTab, logTab,
         });
+
+        // A TabPage carries 3 px of padding its docked child cannot cover, and its default
+        // background is SystemColors.Control. Left alone that draws a white ring around the
+        // content of every tab.
+        foreach (TabPage page in tabs.TabPages) page.BackColor = Theme.Card;
 
         // ---------------- main split ----------------
         // NOTE: SplitterDistance is NOT set here — the control has no size yet, so the

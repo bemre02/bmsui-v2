@@ -72,10 +72,12 @@ public class RegisterCatalogTests
     }
 
     [Fact]
-    public void FormatRaw_ShowsDecimal_AndHexForBitMasks()
+    public void FormatRaw_IsAlwaysPlainDecimal_EvenForBitMasks()
     {
+        // The hex form is FormatValue's job; printing it in both columns is duplication
         Assert.Equal("37441", RegisterCatalog.FormatRaw(Reg.PackVoltage, 37441, Culture));
-        Assert.Equal("6  (0x0006)", RegisterCatalog.FormatRaw(Reg.Faults, 6));
+        Assert.Equal("6", RegisterCatalog.FormatRaw(Reg.Faults, 6, Culture));
+        Assert.Equal("0x0006", RegisterCatalog.FormatValue(Reg.Faults, 6, Culture));
     }
 
     [Fact]
