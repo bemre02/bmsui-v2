@@ -389,8 +389,10 @@ public class EventCsvExporterTests
         var events = new List<PackEvent>
         {
             new(T0, PackEventType.FaultRaised, "Cell overvoltage", null, EventSeverity.Critical),
-            new(T0.AddSeconds(2.3), PackEventType.FaultCleared, "Cell overvoltage",
-                TimeSpan.FromSeconds(2.3), EventSeverity.Info),
+            // Exact-millisecond timestamp: AddSeconds(2.3) formats as .299/.300 depending on
+            // the BCL, so pin it to 2300 ms exactly (same reasoning as the Task 1 duration test).
+            new(T0.AddMilliseconds(2300), PackEventType.FaultCleared, "Cell overvoltage",
+                TimeSpan.FromMilliseconds(2300), EventSeverity.Info),
         };
 
         var lines = EventCsvExporter.ToCsv(events).Split('\n');
