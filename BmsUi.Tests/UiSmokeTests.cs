@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using BmsUi;
+using BmsUi.Model;
 using BmsUi.Protocol;
 using BmsUi.Ui;
 using Xunit;
@@ -288,6 +289,43 @@ public class UiSmokeTests
 
             form.StartStopButton.PerformClick();
             form.Close();
+        });
+    }
+
+    /// <summary>
+    /// The timeline renders the chronological log newest-first and paints without throwing.
+    /// Drawing logic lives in owner-draw handlers, so a construction-only test would miss it.
+    /// </summary>
+    [Fact]
+    public void EventTimeline_ShowsEventsNewestFirstAndPaints()
+    {
+        RunSta(() =>
+        {
+            // The control formats the duration in the current culture (like the rest of the
+            // UI); pin it so "2.0 s" is deterministic on a Turkish machine too. This runs on
+            // RunSta's throwaway thread, so it affects no other test.
+            System.Globalization.CultureInfo.CurrentCulture =
+                System.Globalization.CultureInfo.InvariantCulture;
+
+            using var timeline = new EventTimeline { Width = 620, Height = 240 };
+            timeline.CreateControl();
+
+            var events = new List<PackEvent>
+            {
+                new(new DateTime(2026, 7, 23, 14, 0, 0), PackEventType.FaultRaised,
+                    "Cell overvoltage", null, EventSeverity.Critical),
+                new(new DateTime(2026, 7, 23, 14, 0, 2), PackEventType.FaultCleared,
+                    "Cell overvoltage", TimeSpan.FromSeconds(2), EventSeverity.Info),
+            };
+            timeline.Update(events);
+
+            Assert.Equal(2, timeline.Items.Count);
+            Assert.StartsWith("14:00:02", timeline.Items[0].Text);      // newest on top
+            Assert.Equal("2.0 s", timeline.Items[0].SubItems[2].Text);
+            Assert.Equal("", timeline.Items[1].SubItems[2].Text);       // raised row has no duration
+
+            using var bmp = new Bitmap(timeline.Width, timeline.Height);
+            timeline.DrawToBitmap(bmp, new Rectangle(0, 0, bmp.Width, bmp.Height));
         });
     }
 }
