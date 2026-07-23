@@ -47,7 +47,9 @@ dotnet test
 The fault panel deliberately shows active faults only: a static 15-row list filled half the
 screen and made a real fault harder to spot.
 
-**Tabs:** Voltage · Temperature · Balance · Registers · Settings · Log
+**Tabs:** Voltage · Temperature · Balance · Registers · Events · Settings · Log
+
+- **Events** — a host-side timeline of every FAULTS bit and AIR/PRE/ERR transition, timestamped, with the duration each fault stayed set. In-memory; export to CSV from the tab. Read-only, like the rest of the app.
 
 > The application **never writes to the BMS** — it only reads. A threshold/config write
 > interface was deliberately left out; the Settings tab only changes how the UI looks.

@@ -109,9 +109,9 @@ public class UiSmokeTests
             form.Show();
             Application.DoEvents();
             Assert.True(form.IsHandleCreated);
-            // Voltage / Temperature / Balance / Registers / Settings / Log
+            // Voltage / Temperature / Balance / Registers / Events / Settings / Log
             // — no device-writing "Config" tab
-            Assert.Equal(6, form.TabsControl.TabPages.Count);
+            Assert.Equal(7, form.TabsControl.TabPages.Count);
             Assert.DoesNotContain(form.TabsControl.TabPages.Cast<TabPage>(),
                                   p => p.Text.Contains("Config"));
             form.Close();
@@ -288,6 +288,23 @@ public class UiSmokeTests
             Assert.IsType<string>(form.RegistersTable.Items[0].Tag);
 
             form.StartStopButton.PerformClick();
+            form.Close();
+        });
+    }
+
+    /// <summary>The Events tab exists, is in the strip, and starts empty.</summary>
+    [Fact]
+    public void EventsTab_IsPresentAndStartsEmpty()
+    {
+        RunSta(() =>
+        {
+            using var form = new Form1();
+            form.Show();
+            Application.DoEvents();
+
+            Assert.Contains(form.EventsTab, form.TabsControl.TabPages.Cast<TabPage>());
+            Assert.Empty(form.EventTimelineControl.Items);
+
             form.Close();
         });
     }

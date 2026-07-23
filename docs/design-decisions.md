@@ -53,6 +53,12 @@ it.
 **Snapshots always carry full state.** Fields not refreshed on a given tick keep their previous
 values, and each group has its own timestamp — that is where the "data age" readout comes from.
 
+- **`EventLog`** is a pure diff over the FAULTS and OUTPUTS registers, the same shape as
+  `PollSchedule` and `CellAnalysis`: the timestamp is injected, so fault durations are
+  deterministic under test. The one impurity — `DateTime.Now` — stays at the call site in
+  `Form1`. A disconnect re-baselines it so a gap in the data never reads as every fault
+  clearing at once.
+
 ## 3. What the UI does not do
 
 The application **only reads**. An earlier design had a config panel that wrote thresholds to

@@ -36,8 +36,11 @@ partial class Form1
     private TabControl tabs;
 
     // Tabs
-    private TabPage voltageTab, temperatureTab, balanceTab, registersTab, settingsTab, logTab;
+    private TabPage voltageTab, temperatureTab, balanceTab, registersTab, eventsTab, settingsTab, logTab;
     private RegisterTable registersTable;
+    private EventTimeline eventTimeline;
+    private Button clearEventsButton, exportEventsButton;
+    private Label eventCountLabel;
     private Label registersNoteLabel;
     private CellGridControl voltageGrid, temperatureGrid, balanceGrid;
     private Label tempNoteLabel, balanceSummary;
@@ -289,6 +292,28 @@ partial class Form1
         registersTab.Controls.Add(registersTable);
         registersTab.Controls.Add(registersNoteLabel);
 
+        // ---------------- events tab ----------------
+        eventTimeline = new EventTimeline { Dock = DockStyle.Fill };
+
+        clearEventsButton = new Button { Text = "Clear", Location = new Point(6, 7), Width = 90 };
+        clearEventsButton.Click += clearEventsButton_Click;
+        exportEventsButton = new Button { Text = "Export...", Location = new Point(102, 7), Width = 110 };
+        exportEventsButton.Click += exportEventsButton_Click;
+        eventCountLabel = new Label
+        {
+            AutoSize = true,
+            Location = new Point(226, 13),
+            Text = "0 events · 0 older dropped",
+        };
+        var eventButtons = new Panel { Dock = DockStyle.Bottom, Height = 42 };
+        eventButtons.Controls.Add(clearEventsButton);
+        eventButtons.Controls.Add(exportEventsButton);
+        eventButtons.Controls.Add(eventCountLabel);
+
+        eventsTab = new TabPage("Events");
+        eventsTab.Controls.Add(eventTimeline);        // Fill added first, matching the registers tab
+        eventsTab.Controls.Add(eventButtons);
+
         // ---------------- log tab ----------------
         chooseFileButton = new Button { Text = "Choose file...", Location = new Point(20, 20), Width = 120 };
         chooseFileButton.Click += chooseFileButton_Click;
@@ -336,7 +361,7 @@ partial class Form1
         tabs.SelectedIndexChanged += tabs_SelectedIndexChanged;
         tabs.TabPages.AddRange(new[]
         {
-            voltageTab, temperatureTab, balanceTab, registersTab, settingsTab, logTab,
+            voltageTab, temperatureTab, balanceTab, registersTab, eventsTab, settingsTab, logTab,
         });
 
         // A TabPage carries 3 px of padding its docked child cannot cover, so its own

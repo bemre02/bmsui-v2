@@ -12,6 +12,7 @@ public partial class Form1 : Form
     private SerialLink? _link;
     private PollWorker? _worker;
     private CsvLogger? _logger;
+    private readonly EventLog _eventLog = new();
     private string? _lastPortName;   // null in simulation — no reconnect is attempted
     private DisplaySettings _settings = DisplaySettings.Load();
 
@@ -187,6 +188,7 @@ public partial class Form1 : Form
         simulationCheck.Enabled = true;
         portCombo.Enabled = refreshButton.Enabled = !simulationCheck.Checked;
         if (statusLabel.ForeColor != Theme.Critical) SetStatus("Not connected", Theme.InkMuted);
+        _eventLog.SetDisconnected();   // a gap in the data must not read as every fault clearing
         UpdateDashboard(null);
     }
 
@@ -273,6 +275,17 @@ public partial class Form1 : Form
         balanceGrid.UpdateData(s.CellVoltages, s.IsBalancing);
         registersTable.UpdateData(s);
 
+        // The latch runs on every snapshot regardless of the visible tab — catching an event
+        // nobody is watching is the whole point. It is only repainted when something changed.
+        // The validity gate makes the first *valid* read the baseline, so a fault already
+        // active when the link comes up is not mistaken for one that just appeared.
+        if (s.RegisterValid[Reg.Faults] && s.RegisterValid[Reg.Outputs] &&
+            _eventLog.Observe(s.Faults, s.Outputs, DateTime.Now).Count > 0)
+        {
+            eventTimeline.Update(_eventLog.Events);
+            eventCountLabel.Text = $"{_eventLog.Events.Count} events · {_eventLog.DroppedCount} older dropped";
+        }
+
         UpdateDashboard(s);
 
         balanceSummary.Text =
@@ -345,6 +358,34 @@ public partial class Form1 : Form
         settingsStatusLabel.ForeColor = Theme.InkSecondary;
     }
 
+    // ------------------------------------------------------------------ events
+
+    private void clearEventsButton_Click(object? sender, EventArgs e)
+    {
+        _eventLog.Clear();
+        eventTimeline.Update(_eventLog.Events);
+        eventCountLabel.Text = "0 events · 0 older dropped";
+    }
+
+    private void exportEventsButton_Click(object? sender, EventArgs e)
+    {
+        using var dialog = new SaveFileDialog
+        {
+            Filter = "CSV file (*.csv)|*.csv",
+            FileName = $"bmsui_events_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+        try
+        {
+            EventCsvExporter.Save(dialog.FileName, _eventLog.Events);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not write the file: {ex.Message}", "Export failed");
+        }
+    }
+
     // ------------------------------------------------------------------ CSV log
 
     private void chooseFileButton_Click(object? sender, EventArgs e)
@@ -400,6 +441,8 @@ public partial class Form1 : Form
     internal DashboardPanel Dashboard => dashboard;
     internal RegisterTable RegistersTable => registersTable;
     internal TabPage RegistersTab => registersTab;
+    internal EventTimeline EventTimelineControl => eventTimeline;
+    internal TabPage EventsTab => eventsTab;
     internal PictureBox LogoBox => logoBox;
 
     // ------------------------------------------------------------------ theme
