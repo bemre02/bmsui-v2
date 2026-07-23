@@ -100,13 +100,15 @@ public class EventLogTests
     {
         var log = new EventLog();
         log.Observe(0, 0, T0);
-        log.Observe(Overvoltage, 0, T0.AddSeconds(1));
-        var emitted = log.Observe(0, 0, T0.AddSeconds(3.3));
+        log.Observe(Overvoltage, 0, T0.AddMilliseconds(1000));
+        var emitted = log.Observe(0, 0, T0.AddMilliseconds(3300));
 
         var e = Assert.Single(emitted);
         Assert.Equal(PackEventType.FaultCleared, e.Type);
         Assert.Equal("Cell overvoltage", e.Label);
-        Assert.Equal(TimeSpan.FromSeconds(2.3), e.Duration);
+        // Exact-millisecond timestamps: the subtraction is exact, so no float tolerance is
+        // needed. TimeSpan.FromSeconds(2.3) would differ by a tick against DateTime maths.
+        Assert.Equal(TimeSpan.FromMilliseconds(2300), e.Duration);
         Assert.Equal(EventSeverity.Info, e.Severity);
     }
 
