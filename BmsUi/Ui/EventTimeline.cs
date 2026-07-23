@@ -44,7 +44,7 @@ public sealed class EventTimeline : ListView
     }
 
     /// <summary>Rebuilds the rows newest-first from the chronological event list.</summary>
-    public void Update(IReadOnlyList<PackEvent> events)
+    public void UpdateData(IReadOnlyList<PackEvent> events)
     {
         BeginUpdate();
         try

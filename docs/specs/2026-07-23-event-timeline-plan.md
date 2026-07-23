@@ -535,7 +535,7 @@ Add to `BmsUi.Tests/UiSmokeTests.cs`, inside the `UiSmokeTests` class (after the
                 new(new DateTime(2026, 7, 23, 14, 0, 2), PackEventType.FaultCleared,
                     "Cell overvoltage", TimeSpan.FromSeconds(2), EventSeverity.Info),
             };
-            timeline.Update(events);
+            timeline.UpdateData(events);
 
             Assert.Equal(2, timeline.Items.Count);
             Assert.StartsWith("14:00:02", timeline.Items[0].Text);      // newest on top
@@ -606,7 +606,7 @@ public sealed class EventTimeline : ListView
     }
 
     /// <summary>Rebuilds the rows newest-first from the chronological event list.</summary>
-    public void Update(IReadOnlyList<PackEvent> events)
+    public void UpdateData(IReadOnlyList<PackEvent> events)
     {
         BeginUpdate();
         try
@@ -854,7 +854,7 @@ Replace with:
         if (s.RegisterValid[Reg.Faults] && s.RegisterValid[Reg.Outputs] &&
             _eventLog.Observe(s.Faults, s.Outputs, DateTime.Now).Count > 0)
         {
-            eventTimeline.Update(_eventLog.Events);
+            eventTimeline.UpdateData(_eventLog.Events);
             eventCountLabel.Text = $"{_eventLog.Events.Count} events · {_eventLog.DroppedCount} older dropped";
         }
 
@@ -894,7 +894,7 @@ Immediately before it, insert:
     private void clearEventsButton_Click(object? sender, EventArgs e)
     {
         _eventLog.Clear();
-        eventTimeline.Update(_eventLog.Events);
+        eventTimeline.UpdateData(_eventLog.Events);
         eventCountLabel.Text = "0 events · 0 older dropped";
     }
 

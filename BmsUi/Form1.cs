@@ -282,7 +282,7 @@ public partial class Form1 : Form
         if (s.RegisterValid[Reg.Faults] && s.RegisterValid[Reg.Outputs] &&
             _eventLog.Observe(s.Faults, s.Outputs, DateTime.Now).Count > 0)
         {
-            eventTimeline.Update(_eventLog.Events);
+            eventTimeline.UpdateData(_eventLog.Events);
             eventCountLabel.Text = $"{_eventLog.Events.Count} events · {_eventLog.DroppedCount} older dropped";
         }
 
@@ -363,7 +363,7 @@ public partial class Form1 : Form
     private void clearEventsButton_Click(object? sender, EventArgs e)
     {
         _eventLog.Clear();
-        eventTimeline.Update(_eventLog.Events);
+        eventTimeline.UpdateData(_eventLog.Events);
         eventCountLabel.Text = "0 events · 0 older dropped";
     }
 

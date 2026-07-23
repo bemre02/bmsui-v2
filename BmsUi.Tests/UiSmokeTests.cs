@@ -334,7 +334,7 @@ public class UiSmokeTests
                 new(new DateTime(2026, 7, 23, 14, 0, 2), PackEventType.FaultCleared,
                     "Cell overvoltage", TimeSpan.FromSeconds(2), EventSeverity.Info),
             };
-            timeline.Update(events);
+            timeline.UpdateData(events);
 
             Assert.Equal(2, timeline.Items.Count);
             Assert.StartsWith("14:00:02", timeline.Items[0].Text);      // newest on top
