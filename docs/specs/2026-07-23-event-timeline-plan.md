@@ -519,6 +519,12 @@ Add to `BmsUi.Tests/UiSmokeTests.cs`, inside the `UiSmokeTests` class (after the
     {
         RunSta(() =>
         {
+            // The control formats the duration in the current culture (like the rest of the
+            // UI); pin it so "2.0 s" is deterministic on a Turkish machine too. This runs on
+            // RunSta's throwaway thread, so it affects no other test.
+            System.Globalization.CultureInfo.CurrentCulture =
+                System.Globalization.CultureInfo.InvariantCulture;
+
             using var timeline = new EventTimeline { Width = 620, Height = 240 };
             timeline.CreateControl();
 
