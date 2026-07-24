@@ -31,6 +31,24 @@ public static class Branding
         }
     }
 
+    /// <summary>
+    /// Largest size that fits inside <paramref name="box"/> without distorting the source.
+    ///
+    /// The team logo is far from square — 620x161, close to 4:1 — so any layout that fills a
+    /// fixed area squashes it visibly. Both the window icon and the splash screen size it
+    /// through here. Returns <see cref="Size.Empty"/> for a degenerate input rather than
+    /// throwing: the logo may be missing entirely and the caller still has to draw something.
+    /// </summary>
+    public static Size ScaleToFit(Size source, Size box)
+    {
+        if (source.Width <= 0 || source.Height <= 0 || box.Width <= 0 || box.Height <= 0)
+            return Size.Empty;
+
+        double scale = Math.Min((double)box.Width / source.Width, (double)box.Height / source.Height);
+        return new Size(Math.Max(1, (int)Math.Round(source.Width * scale)),
+                        Math.Max(1, (int)Math.Round(source.Height * scale)));
+    }
+
     /// <summary>Pencere/gorev cubugu ikonu (logodan uretilir).</summary>
     public static Icon? CreateWindowIcon()
     {
@@ -41,9 +59,9 @@ public static class Branding
             using (var g = Graphics.FromImage(square))
             {
                 g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                float scale = Math.Min(64f / TeamLogo.Width, 64f / TeamLogo.Height);
-                float w = TeamLogo.Width * scale, h = TeamLogo.Height * scale;
-                g.DrawImage(TeamLogo, (64 - w) / 2f, (64 - h) / 2f, w, h);
+                var fitted = ScaleToFit(TeamLogo.Size, new Size(64, 64));
+                g.DrawImage(TeamLogo, (64 - fitted.Width) / 2f, (64 - fitted.Height) / 2f,
+                            fitted.Width, fitted.Height);
             }
             IntPtr handle = square.GetHicon();
             using var icon = Icon.FromHandle(handle);

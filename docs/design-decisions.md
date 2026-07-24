@@ -147,6 +147,17 @@ Recorded so they are not rediscovered the hard way.
   bar against a dark table. `SetWindowTheme(handle, "DarkMode_Explorer", null)` reaches it.
   The theme name is undocumented and is a no-op on Windows versions that do not know it, so
   nothing may depend on it having worked.
+- **A splash screen cannot live on the UI thread.** Startup was profiled before writing one:
+  `new Form1()` costs ~426 ms and first paint another ~258 ms, all on the main thread — so a
+  splash owned by that thread is frozen for precisely the window it exists to fill.
+  `SplashScreen` runs its own STA thread with its own `Application.Run`, which also means the
+  two overlap and the splash adds no startup time. Worth recording separately: the profile
+  cleared the obvious suspect — `SerialPortCatalog.List()` is 9 ms, the cost is `Form1`'s own
+  construction (three 96-cell grids, seven tabs, a 47-row table).
+- **An always-on-top splash needs a self-destruct.** If the signal to close never arrives — a
+  crash mid-startup, a callback that never fires — the window sits over the desktop for the
+  whole session with no way to reach it. A 15 s timer inside the form keeps the worst case at
+  "no splash" rather than "an unclosable window".
 
 ## 6. Firmware observations
 
