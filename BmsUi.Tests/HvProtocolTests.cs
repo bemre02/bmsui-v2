@@ -4,8 +4,15 @@ using Xunit;
 public class HvProtocolTests
 {
     [Fact]
-    public void FaultNames_Has15Entries()
-        => Assert.Equal(15, FaultBits.Names.Length);
+    public void FaultNames_Has16Entries_MatchingFirmwareBits0To15()
+        => Assert.Equal(16, FaultBits.Names.Length);
+
+    [Fact]
+    public void Decode_Bit15_ReturnsAdbmsRefDrift()
+    {
+        var names = FaultBits.Decode(1 << 15);
+        Assert.Equal(new[] { "ADBMS ref drift" }, names);
+    }
 
     [Fact]
     public void Decode_NoBits_ReturnsEmpty()
@@ -27,6 +34,15 @@ public class HvProtocolTests
     [InlineData(0x08, false)]  // PACK_CURRENT — an ordinary register
     public void IsShadowedRegister_DetectsCommandCollisions(byte idx, bool expected)
         => Assert.Equal(expected, HvProtocol.IsShadowedRegister(idx));
+
+    [Theory]
+    [InlineData(17, false)]  // ESTIMATED_SoC — FW write blocked
+    [InlineData(48, false)]  // SOC_NV_MAGIC
+    [InlineData(49, false)]  // SOC_NV_BUILD_ID
+    [InlineData(30, true)]   // ALLOWED_DISBALANCE
+    [InlineData(41, false)]  // shadowed
+    public void WriteGuard_MatchesFirmwareUsbWritePolicy(byte idx, bool writable)
+        => Assert.Equal(writable, WriteGuard.IsWritable(idx));
 
     [Fact]
     public void IsValidRegister_RejectsIndexAt50AndAbove()

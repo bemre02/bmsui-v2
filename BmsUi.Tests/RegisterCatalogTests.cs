@@ -86,6 +86,16 @@ public class RegisterCatalogTests
         string note = RegisterCatalog.FormatNote(Reg.Faults, (1 << 2) | (1 << 13));
         Assert.Contains("Cell overvoltage", note);
         Assert.Contains("Precharge timeout", note);
+        Assert.Contains("ADBMS ref drift",
+            RegisterCatalog.FormatNote(Reg.Faults, 1 << 15));
+    }
+
+    [Fact]
+    public void FormatValue_DischargeOverCurrent_IsUnsigned()
+    {
+        // FW init DISCHARGE_OVER_CURRENT_TRESHOLD = 3500 → 350.0 A (unsigned)
+        Assert.Equal("350.0 A", RegisterCatalog.FormatValue(35, 3500, Culture));
+        Assert.False(RegisterCatalog.Describe(35).Signed);
     }
 
     [Fact]

@@ -80,6 +80,7 @@ public sealed class FakeDeviceTransport : ISerialTransport
     private byte[] WriteRegister(byte[] packet)
     {
         byte idx = packet[0];
+        if (!WriteGuard.IsWritable(idx)) return Array.Empty<byte>();
         Registers[idx] = (ushort)((packet[2] << 8) | packet[1]);
         return RegisterFrame(idx, Registers[idx]);
     }

@@ -116,6 +116,18 @@ public class SerialLinkTests
         Assert.Equal(new byte[] { Reg.AllowedDisbalance, 0x02, 0x01 }, t.Written[0]);
     }
 
+    [Theory]
+    [InlineData(17)]
+    [InlineData(48)]
+    [InlineData(49)]
+    public void WriteRegister_FwProtectedIndex_ThrowsWithoutTouchingPort(byte idx)
+    {
+        var t = new FakeTransport();
+        using var link = new SerialLink(t);
+        Assert.Throws<ArgumentOutOfRangeException>(() => link.WriteRegister(idx, 1));
+        Assert.Empty(t.Written);
+    }
+
     [Fact]
     public void WriteCommand_IsSentAsSingleWriteCall()
     {

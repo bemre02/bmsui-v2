@@ -85,9 +85,9 @@ public sealed class SerialLink : IDisposable
 
     public ushort? WriteRegister(byte index, ushort value)
     {
-        if (!HvProtocol.IsValidRegister(index))
+        if (!WriteGuard.IsWritable(index))
             throw new ArgumentOutOfRangeException(nameof(index),
-                $"idx {index} is not writable (>=50 or shadowed by 0x29/0x2A/0x2B)");
+                $"idx {index} is not writable (shadowed, >=50, or FW write-protected SoC/NV 17/48/49)");
 
         var cmd = new[] { index, (byte)(value & 0xFF), (byte)(value >> 8) };
         var frame = Transact(cmd, HvProtocol.RegisterFrameLength, index);

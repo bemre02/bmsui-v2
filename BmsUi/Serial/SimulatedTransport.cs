@@ -165,7 +165,8 @@ public sealed class SimulatedTransport : ISerialTransport
     private byte[] WriteRegister(byte[] packet)
     {
         byte idx = packet[0];
-        if (idx >= HvProtocol.MaxRegisterIndexExclusive) return Array.Empty<byte>();
+        // Match firmware: silent drop for SoC/NV and shadowed indices
+        if (!WriteGuard.IsWritable(idx)) return Array.Empty<byte>();
         _registers[idx] = (ushort)((packet[2] << 8) | packet[1]);
         return RegisterFrame(idx, _registers[idx]);
     }

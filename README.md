@@ -217,16 +217,17 @@ burst and appends a correct CRC8 to every response.
 | 12 / 13 | MAX / MIN_CELL_TEMP | signed ×100 °C |
 | 14 / 15 | AVG_CELL_VOLTAGE / _TEMP | ×100 |
 | 16 | MAX_SLAVE_TEMP | signed ×100 |
-| 17 | ESTIMATED_SoC | ×10000 |
+| 17 | ESTIMATED_SoC | ×10000 (USB write blocked) |
 | 30 | ALLOWED_DISBALANCE | mV (writable) |
 | 32 / 33 | PRECHARGE_PERCENTAGE / _TIMEOUT | writable |
+| 48 / 49 | SOC_NV_MAGIC / BUILD_ID | NV meta (USB write blocked) |
 
 ### FAULTS bits
 
 0 PEC/comms · 1 cell UV · 2 cell OV · 3 discharge overcurrent · 4 charge overcurrent ·
 5 cell undertemperature · 6 cell overtemperature · 7 cell open wire · 8 no current sensor ·
 9 slave overtemperature · 10 pack UV · 11 pack OV · 12 temperature open wire ·
-13 precharge timeout · 14 measurement stale
+13 precharge timeout · 14 measurement stale · **15 ADBMS ref drift**
 
 ## Architecture
 

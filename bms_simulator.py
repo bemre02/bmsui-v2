@@ -69,6 +69,9 @@ class PackState:
             self.temps[i] += random.uniform(-0.05, 0.05) + abs(self.current) * 0.00008
             self.temps[i] = min(78.0, max(15.0, self.temps[i]))
 
+        # Firmware GUI_DATAS.Cell_Temps[94] = Cell_Temps[20] remap
+        self.temps[94] = self.temps[20]
+
         avg_v = sum(self.voltages) / CELL_COUNT
         avg_t = sum(self.temps) / CELL_COUNT
         pack_v = sum(self.voltages)
@@ -213,7 +216,11 @@ def main():
                     print("Ping received -> echo sent")
             elif len(packet) == 3:
                 idx, lsb, msb = packet[0], packet[1], packet[2]
-                if idx < 50:
+                # Firmware: no reply for SoC/NV (17/48/49) or shadowed 41/42/43
+                if idx in (17, 41, 42, 43, 48, 49) or idx >= 50:
+                    if args.verbose:
+                        print(f"WRITE idx {idx} refused silently (FW write guard)")
+                elif idx < 50:
                     state.registers[idx] = (msb << 8) | lsb
                     send(ser, register_frame(idx, state.registers[idx]),
                          args.chunked, args.latency)

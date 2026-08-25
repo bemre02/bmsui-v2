@@ -75,10 +75,9 @@ public static class RegisterCatalog
             if ((raw & OutputBits.Err) != 0) on.Add("ERR");
             return on.Count == 0 ? "all open" : string.Join(" + ", on);
         }
-        if (index == 2)
+        if (index == Reg.ChargingState)
         {
-            // Firmware enum CHARG_STATE (main.cpp:285-291). Note: the firmware writes this
-            // register before assigning the value, so in practice it always reads NO_CHARGER.
+            // Firmware enum CHARG_STATE (main.cpp) written by ChargeControl_Task.
             return raw switch
             {
                 1 => "NO_CHARGER",
@@ -99,7 +98,7 @@ public static class RegisterCatalog
             new(Reg.Faults,  "FAULTS",  "", 1, false, RegisterGroup.Status),
             new(Reg.Outputs, "OUTPUTS", "", 1, false, RegisterGroup.Status),
 
-            new(2,  "CHARGING_STATE",         "",  1,   false, RegisterGroup.Charger),
+            new(Reg.ChargingState,        "CHARGING_STATE",         "",  1,   false, RegisterGroup.Charger),
             new(3,  "CHARGER_SET_VOLTAGE",    "V", 100, false, RegisterGroup.Charger),
             new(4,  "CHARGER_SET_CURRENT",    "A", 10,  false, RegisterGroup.Charger),
             new(5,  "CHARGER_ACTUAL_VOLTAGE", "V", 100, false, RegisterGroup.Charger),
@@ -122,13 +121,17 @@ public static class RegisterCatalog
             new(Reg.AllowedDisbalance,   "ALLOWED_DISBALANCE",   "mV", 1, false, RegisterGroup.Config),
             new(Reg.PrechargePercentage, "PRECHARGE_PERCENTAGE", "%",  1, false, RegisterGroup.Config),
             new(Reg.PrechargeTimeout,    "PRECHARGE_TIMEOUT",    "ms", 1, false, RegisterGroup.Config),
+            // Charge OC threshold is signed (negative A); discharge OC is positive unsigned in FW.
             new(34, "CHARGE_OVER_CURRENT_TRESHOLD",    "A",  10, true,  RegisterGroup.Config),
-            new(35, "DISCHARGE_OVER_CURRENT_TRESHOLD", "A",  10, true,  RegisterGroup.Config),
+            new(35, "DISCHARGE_OVER_CURRENT_TRESHOLD", "A",  10, false, RegisterGroup.Config),
             new(36, "OVER_VOLTAGE_ERROR_DELAY",        "ms", 1,  false, RegisterGroup.Config),
             new(37, "UNDER_VOLTAGE_ERROR_DELAY",       "ms", 1,  false, RegisterGroup.Config),
             new(38, "OVER_CURRENT_ERROR_DELAY",        "ms", 1,  false, RegisterGroup.Config),
             new(39, "OPEN_WIRE_ERROR_DELAY",           "ms", 1,  false, RegisterGroup.Config),
             new(40, "HEAT_ERROR_DELAY",                "ms", 1,  false, RegisterGroup.Config),
+
+            new(Reg.SocNvMagic,   "SOC_NV_MAGIC",    "", 1, false, RegisterGroup.Config),
+            new(Reg.SocNvBuildId, "SOC_NV_BUILD_ID", "", 1, false, RegisterGroup.Config),
         };
         return list.ToDictionary(d => d.Index);
     }

@@ -90,6 +90,19 @@ public class EventLogTests
     }
 
     [Fact]
+    public void RisingFaultBit15_EmitsAdbmsRefDrift()
+    {
+        var log = new EventLog();
+        log.Observe(0, 0, T0);
+        var emitted = log.Observe((ushort)(1 << 15), 0, T0.AddMilliseconds(100));
+
+        var e = Assert.Single(emitted);
+        Assert.Equal(PackEventType.FaultRaised, e.Type);
+        Assert.Equal("ADBMS ref drift", e.Label);
+        Assert.Equal(EventSeverity.Critical, e.Severity);
+    }
+
+    [Fact]
     public void ReconnectReBaselinesSilently()
     {
         var log = new EventLog();

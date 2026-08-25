@@ -1,0 +1,367 @@
+From b4d77516d88b5bae21e813f1235bc815f18b45ab Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Tue, 25 Aug 2026 12:23:23 +0000
+Subject: [PATCH] fix: align UI with FreeRTOS BMS USB protocol quirks
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Decode FAULT bit15 (ADBMS ref drift) in FaultBits/EventLog/notes
+- Block USB writes to SoC/NV indices 17/48/49 (matches firmware)
+- Mark DISCHARGE_OVER_CURRENT as unsigned; catalog NV meta regs
+- Simulator: cell 94→20 remap + silent write refuse like firmware
+---
+ BmsUi.Tests/EventLogTests.cs        | 13 +++++++
+ BmsUi.Tests/FakeDeviceTransport.cs  |  1 +
+ BmsUi.Tests/HvProtocolTests.cs      | 20 +++++++++--
+ BmsUi.Tests/RegisterCatalogTests.cs | 10 ++++++
+ BmsUi.Tests/SerialLinkTests.cs      | 12 +++++++
+ BmsUi/Protocol/HvProtocol.cs        | 53 ++++++++++++++++++++---------
+ BmsUi/Protocol/RegisterCatalog.cs   | 13 ++++---
+ BmsUi/Serial/SerialLink.cs          |  4 +--
+ BmsUi/Serial/SimulatedTransport.cs  |  3 +-
+ README.md                           |  5 +--
+ bms_simulator.py                    |  9 ++++-
+ 11 files changed, 114 insertions(+), 29 deletions(-)
+
+diff --git a/BmsUi.Tests/EventLogTests.cs b/BmsUi.Tests/EventLogTests.cs
+index 5a2b4a9..e37cf22 100644
+--- a/BmsUi.Tests/EventLogTests.cs
++++ b/BmsUi.Tests/EventLogTests.cs
+@@ -89,6 +89,19 @@ public class EventLogTests
+         Assert.Equal("ERR cleared", errOff.Label);
+     }
+ 
++    [Fact]
++    public void RisingFaultBit15_EmitsAdbmsRefDrift()
++    {
++        var log = new EventLog();
++        log.Observe(0, 0, T0);
++        var emitted = log.Observe((ushort)(1 << 15), 0, T0.AddMilliseconds(100));
++
++        var e = Assert.Single(emitted);
++        Assert.Equal(PackEventType.FaultRaised, e.Type);
++        Assert.Equal("ADBMS ref drift", e.Label);
++        Assert.Equal(EventSeverity.Critical, e.Severity);
++    }
++
+     [Fact]
+     public void ReconnectReBaselinesSilently()
+     {
+diff --git a/BmsUi.Tests/FakeDeviceTransport.cs b/BmsUi.Tests/FakeDeviceTransport.cs
+index 167d072..7534bdf 100644
+--- a/BmsUi.Tests/FakeDeviceTransport.cs
++++ b/BmsUi.Tests/FakeDeviceTransport.cs
+@@ -80,6 +80,7 @@ public sealed class FakeDeviceTransport : ISerialTransport
+     private byte[] WriteRegister(byte[] packet)
+     {
+         byte idx = packet[0];
++        if (!WriteGuard.IsWritable(idx)) return Array.Empty<byte>();
+         Registers[idx] = (ushort)((packet[2] << 8) | packet[1]);
+         return RegisterFrame(idx, Registers[idx]);
+     }
+diff --git a/BmsUi.Tests/HvProtocolTests.cs b/BmsUi.Tests/HvProtocolTests.cs
+index 249ff52..1d8f85a 100644
+--- a/BmsUi.Tests/HvProtocolTests.cs
++++ b/BmsUi.Tests/HvProtocolTests.cs
+@@ -4,8 +4,15 @@ using Xunit;
+ public class HvProtocolTests
+ {
+     [Fact]
+-    public void FaultNames_Has15Entries()
+-        => Assert.Equal(15, FaultBits.Names.Length);
++    public void FaultNames_Has16Entries_MatchingFirmwareBits0To15()
++        => Assert.Equal(16, FaultBits.Names.Length);
++
++    [Fact]
++    public void Decode_Bit15_ReturnsAdbmsRefDrift()
++    {
++        var names = FaultBits.Decode(1 << 15);
++        Assert.Equal(new[] { "ADBMS ref drift" }, names);
++    }
+ 
+     [Fact]
+     public void Decode_NoBits_ReturnsEmpty()
+@@ -28,6 +35,15 @@ public class HvProtocolTests
+     public void IsShadowedRegister_DetectsCommandCollisions(byte idx, bool expected)
+         => Assert.Equal(expected, HvProtocol.IsShadowedRegister(idx));
+ 
++    [Theory]
++    [InlineData(17, false)]  // ESTIMATED_SoC — FW write blocked
++    [InlineData(48, false)]  // SOC_NV_MAGIC
++    [InlineData(49, false)]  // SOC_NV_BUILD_ID
++    [InlineData(30, true)]   // ALLOWED_DISBALANCE
++    [InlineData(41, false)]  // shadowed
++    public void WriteGuard_MatchesFirmwareUsbWritePolicy(byte idx, bool writable)
++        => Assert.Equal(writable, WriteGuard.IsWritable(idx));
++
+     [Fact]
+     public void IsValidRegister_RejectsIndexAt50AndAbove()
+     {
+diff --git a/BmsUi.Tests/RegisterCatalogTests.cs b/BmsUi.Tests/RegisterCatalogTests.cs
+index 2dba7fd..3ffaede 100644
+--- a/BmsUi.Tests/RegisterCatalogTests.cs
++++ b/BmsUi.Tests/RegisterCatalogTests.cs
+@@ -86,6 +86,16 @@ public class RegisterCatalogTests
+         string note = RegisterCatalog.FormatNote(Reg.Faults, (1 << 2) | (1 << 13));
+         Assert.Contains("Cell overvoltage", note);
+         Assert.Contains("Precharge timeout", note);
++        Assert.Contains("ADBMS ref drift",
++            RegisterCatalog.FormatNote(Reg.Faults, 1 << 15));
++    }
++
++    [Fact]
++    public void FormatValue_DischargeOverCurrent_IsUnsigned()
++    {
++        // FW init DISCHARGE_OVER_CURRENT_TRESHOLD = 3500 → 350.0 A (unsigned)
++        Assert.Equal("350.0 A", RegisterCatalog.FormatValue(35, 3500, Culture));
++        Assert.False(RegisterCatalog.Describe(35).Signed);
+     }
+ 
+     [Fact]
+diff --git a/BmsUi.Tests/SerialLinkTests.cs b/BmsUi.Tests/SerialLinkTests.cs
+index d925e81..c57cff0 100644
+--- a/BmsUi.Tests/SerialLinkTests.cs
++++ b/BmsUi.Tests/SerialLinkTests.cs
+@@ -116,6 +116,18 @@ public class SerialLinkTests
+         Assert.Equal(new byte[] { Reg.AllowedDisbalance, 0x02, 0x01 }, t.Written[0]);
+     }
+ 
++    [Theory]
++    [InlineData(17)]
++    [InlineData(48)]
++    [InlineData(49)]
++    public void WriteRegister_FwProtectedIndex_ThrowsWithoutTouchingPort(byte idx)
++    {
++        var t = new FakeTransport();
++        using var link = new SerialLink(t);
++        Assert.Throws<ArgumentOutOfRangeException>(() => link.WriteRegister(idx, 1));
++        Assert.Empty(t.Written);
++    }
++
+     [Fact]
+     public void WriteCommand_IsSentAsSingleWriteCall()
+     {
+diff --git a/BmsUi/Protocol/HvProtocol.cs b/BmsUi/Protocol/HvProtocol.cs
+index 3259491..408d6de 100644
+--- a/BmsUi/Protocol/HvProtocol.cs
++++ b/BmsUi/Protocol/HvProtocol.cs
+@@ -31,11 +31,12 @@ public static class HvProtocol
+         => index < MaxRegisterIndexExclusive && !IsShadowedRegister(index);
+ }
+ 
+-/// <summary>MAINBUFFER indices (firmware Core/Inc/main.h:93-123).</summary>
++/// <summary>MAINBUFFER indices (firmware Core/Inc/main.h).</summary>
+ public static class Reg
+ {
+     public const byte Faults              = 0;
+     public const byte Outputs             = 1;
++    public const byte ChargingState       = 2;
+     public const byte PackVoltage         = 7;
+     public const byte PackCurrent         = 8;   // signed, x10
+     public const byte MaxCellVoltage      = 9;
+@@ -46,10 +47,12 @@ public static class Reg
+     public const byte AvgCellVoltage      = 14;
+     public const byte AvgCellTemp         = 15;
+     public const byte MaxSlaveTemp        = 16;  // signed
+-    public const byte EstimatedSoc        = 17;  // x10000
++    public const byte EstimatedSoc        = 17;  // x10000 (inspector Scale=100 → %)
+     public const byte AllowedDisbalance   = 30;  // mV, writable
+     public const byte PrechargePercentage = 32;  // writable
+     public const byte PrechargeTimeout    = 33;  // writable
++    public const byte SocNvMagic          = 48;  // EKF/NV — USB write blocked in FW
++    public const byte SocNvBuildId        = 49;  // EKF/NV — USB write blocked in FW
+ }
+ 
+ /// <summary>OUTPUTS (idx 1) bit masks.</summary>
+@@ -60,26 +63,27 @@ public static class OutputBits
+     public const ushort Err = 1 << 2;   // SDC / ERROR_OUT
+ }
+ 
+-/// <summary>FAULTS (idx 0) bit mask decoding.</summary>
++/// <summary>FAULTS (idx 0) bit mask decoding — matches main.h FAULT_* bits 0..15.</summary>
+ public static class FaultBits
+ {
+     public static readonly string[] Names =
+     {
+-        "PEC / comms error",         // 0
+-        "Cell undervoltage",         // 1
+-        "Cell overvoltage",          // 2
+-        "Discharge overcurrent",     // 3
+-        "Charge overcurrent",        // 4
+-        "Cell undertemperature",     // 5
+-        "Cell overtemperature",      // 6
++        "PEC / comms error",         // 0  FAULT_PEC_COMMS
++        "Cell undervoltage",         // 1  FAULT_CELL_UV
++        "Cell overvoltage",          // 2  FAULT_CELL_OV
++        "Discharge overcurrent",     // 3  FAULT_DISCHARGE_OC
++        "Charge overcurrent",        // 4  FAULT_CHARGE_OC
++        "Cell undertemperature",     // 5  FAULT_CELL_UNDERTEMP
++        "Cell overtemperature",      // 6  FAULT_CELL_OVERTEMP
+         "Cell open wire",            // 7
+-        "No current sensor",         // 8
+-        "Slave overtemperature",     // 9
+-        "Pack undervoltage",         // 10
+-        "Pack overvoltage",          // 11
++        "No current sensor",         // 8  FAULT_NO_CURRENT_SENS
++        "Slave overtemperature",     // 9  FAULT_SLAVE_OVERTEMP
++        "Pack undervoltage",         // 10 FAULT_PACK_UV
++        "Pack overvoltage",          // 11 FAULT_PACK_OV
+         "Temperature open wire",     // 12
+-        "Precharge timeout",         // 13
+-        "Measurement stale",         // 14
++        "Precharge timeout",         // 13 FAULT_PRECHARGE_TO
++        "Measurement stale",         // 14 FAULT_MEAS_STALE
++        "ADBMS ref drift",           // 15 FAULT_ADBMS_REF_DRIFT
+     };
+ 
+     public static IReadOnlyList<string> Decode(ushort mask)
+@@ -92,3 +96,20 @@ public static class FaultBits
+ 
+     public static bool IsSet(ushort mask, int bit) => (mask & (1 << bit)) != 0;
+ }
++
++/// <summary>
++/// USB write denylist — firmware USB_Task case 3 refuses these without a reply
++/// (SoC/NV owned by EKF + soc_nv). Also shadowed command indices are not writable.
++/// </summary>
++public static class WriteGuard
++{
++    public static bool IsWriteProtected(byte index)
++        => index == Reg.EstimatedSoc
++           || index == Reg.SocNvMagic
++           || index == Reg.SocNvBuildId
++           || HvProtocol.IsShadowedRegister(index)
++           || index >= HvProtocol.MaxRegisterIndexExclusive;
++
++    public static bool IsWritable(byte index)
++        => HvProtocol.IsValidRegister(index) && !IsWriteProtected(index);
++}
+diff --git a/BmsUi/Protocol/RegisterCatalog.cs b/BmsUi/Protocol/RegisterCatalog.cs
+index 88461f5..4455375 100644
+--- a/BmsUi/Protocol/RegisterCatalog.cs
++++ b/BmsUi/Protocol/RegisterCatalog.cs
+@@ -75,10 +75,9 @@ public static class RegisterCatalog
+             if ((raw & OutputBits.Err) != 0) on.Add("ERR");
+             return on.Count == 0 ? "all open" : string.Join(" + ", on);
+         }
+-        if (index == 2)
++        if (index == Reg.ChargingState)
+         {
+-            // Firmware enum CHARG_STATE (main.cpp:285-291). Note: the firmware writes this
+-            // register before assigning the value, so in practice it always reads NO_CHARGER.
++            // Firmware enum CHARG_STATE (main.cpp) written by ChargeControl_Task.
+             return raw switch
+             {
+                 1 => "NO_CHARGER",
+@@ -99,7 +98,7 @@ public static class RegisterCatalog
+             new(Reg.Faults,  "FAULTS",  "", 1, false, RegisterGroup.Status),
+             new(Reg.Outputs, "OUTPUTS", "", 1, false, RegisterGroup.Status),
+ 
+-            new(2,  "CHARGING_STATE",         "",  1,   false, RegisterGroup.Charger),
++            new(Reg.ChargingState,        "CHARGING_STATE",         "",  1,   false, RegisterGroup.Charger),
+             new(3,  "CHARGER_SET_VOLTAGE",    "V", 100, false, RegisterGroup.Charger),
+             new(4,  "CHARGER_SET_CURRENT",    "A", 10,  false, RegisterGroup.Charger),
+             new(5,  "CHARGER_ACTUAL_VOLTAGE", "V", 100, false, RegisterGroup.Charger),
+@@ -122,13 +121,17 @@ public static class RegisterCatalog
+             new(Reg.AllowedDisbalance,   "ALLOWED_DISBALANCE",   "mV", 1, false, RegisterGroup.Config),
+             new(Reg.PrechargePercentage, "PRECHARGE_PERCENTAGE", "%",  1, false, RegisterGroup.Config),
+             new(Reg.PrechargeTimeout,    "PRECHARGE_TIMEOUT",    "ms", 1, false, RegisterGroup.Config),
++            // Charge OC threshold is signed (negative A); discharge OC is positive unsigned in FW.
+             new(34, "CHARGE_OVER_CURRENT_TRESHOLD",    "A",  10, true,  RegisterGroup.Config),
+-            new(35, "DISCHARGE_OVER_CURRENT_TRESHOLD", "A",  10, true,  RegisterGroup.Config),
++            new(35, "DISCHARGE_OVER_CURRENT_TRESHOLD", "A",  10, false, RegisterGroup.Config),
+             new(36, "OVER_VOLTAGE_ERROR_DELAY",        "ms", 1,  false, RegisterGroup.Config),
+             new(37, "UNDER_VOLTAGE_ERROR_DELAY",       "ms", 1,  false, RegisterGroup.Config),
+             new(38, "OVER_CURRENT_ERROR_DELAY",        "ms", 1,  false, RegisterGroup.Config),
+             new(39, "OPEN_WIRE_ERROR_DELAY",           "ms", 1,  false, RegisterGroup.Config),
+             new(40, "HEAT_ERROR_DELAY",                "ms", 1,  false, RegisterGroup.Config),
++
++            new(Reg.SocNvMagic,   "SOC_NV_MAGIC",    "", 1, false, RegisterGroup.Config),
++            new(Reg.SocNvBuildId, "SOC_NV_BUILD_ID", "", 1, false, RegisterGroup.Config),
+         };
+         return list.ToDictionary(d => d.Index);
+     }
+diff --git a/BmsUi/Serial/SerialLink.cs b/BmsUi/Serial/SerialLink.cs
+index 9fcb7c4..8d7f843 100644
+--- a/BmsUi/Serial/SerialLink.cs
++++ b/BmsUi/Serial/SerialLink.cs
+@@ -85,9 +85,9 @@ public sealed class SerialLink : IDisposable
+ 
+     public ushort? WriteRegister(byte index, ushort value)
+     {
+-        if (!HvProtocol.IsValidRegister(index))
++        if (!WriteGuard.IsWritable(index))
+             throw new ArgumentOutOfRangeException(nameof(index),
+-                $"idx {index} is not writable (>=50 or shadowed by 0x29/0x2A/0x2B)");
++                $"idx {index} is not writable (shadowed, >=50, or FW write-protected SoC/NV 17/48/49)");
+ 
+         var cmd = new[] { index, (byte)(value & 0xFF), (byte)(value >> 8) };
+         var frame = Transact(cmd, HvProtocol.RegisterFrameLength, index);
+diff --git a/BmsUi/Serial/SimulatedTransport.cs b/BmsUi/Serial/SimulatedTransport.cs
+index 44abc09..92de3be 100644
+--- a/BmsUi/Serial/SimulatedTransport.cs
++++ b/BmsUi/Serial/SimulatedTransport.cs
+@@ -165,7 +165,8 @@ public sealed class SimulatedTransport : ISerialTransport
+     private byte[] WriteRegister(byte[] packet)
+     {
+         byte idx = packet[0];
+-        if (idx >= HvProtocol.MaxRegisterIndexExclusive) return Array.Empty<byte>();
++        // Match firmware: silent drop for SoC/NV and shadowed indices
++        if (!WriteGuard.IsWritable(idx)) return Array.Empty<byte>();
+         _registers[idx] = (ushort)((packet[2] << 8) | packet[1]);
+         return RegisterFrame(idx, _registers[idx]);
+     }
+diff --git a/README.md b/README.md
+index b2466e4..a182a8d 100644
+--- a/README.md
++++ b/README.md
+@@ -217,16 +217,17 @@ burst and appends a correct CRC8 to every response.
+ | 12 / 13 | MAX / MIN_CELL_TEMP | signed ×100 °C |
+ | 14 / 15 | AVG_CELL_VOLTAGE / _TEMP | ×100 |
+ | 16 | MAX_SLAVE_TEMP | signed ×100 |
+-| 17 | ESTIMATED_SoC | ×10000 |
++| 17 | ESTIMATED_SoC | ×10000 (USB write blocked) |
+ | 30 | ALLOWED_DISBALANCE | mV (writable) |
+ | 32 / 33 | PRECHARGE_PERCENTAGE / _TIMEOUT | writable |
++| 48 / 49 | SOC_NV_MAGIC / BUILD_ID | NV meta (USB write blocked) |
+ 
+ ### FAULTS bits
+ 
+ 0 PEC/comms · 1 cell UV · 2 cell OV · 3 discharge overcurrent · 4 charge overcurrent ·
+ 5 cell undertemperature · 6 cell overtemperature · 7 cell open wire · 8 no current sensor ·
+ 9 slave overtemperature · 10 pack UV · 11 pack OV · 12 temperature open wire ·
+-13 precharge timeout · 14 measurement stale
++13 precharge timeout · 14 measurement stale · **15 ADBMS ref drift**
+ 
+ ## Architecture
+ 
+diff --git a/bms_simulator.py b/bms_simulator.py
+index 93e5199..f5dfaf3 100644
+--- a/bms_simulator.py
++++ b/bms_simulator.py
+@@ -69,6 +69,9 @@ class PackState:
+             self.temps[i] += random.uniform(-0.05, 0.05) + abs(self.current) * 0.00008
+             self.temps[i] = min(78.0, max(15.0, self.temps[i]))
+ 
++        # Firmware GUI_DATAS.Cell_Temps[94] = Cell_Temps[20] remap
++        self.temps[94] = self.temps[20]
++
+         avg_v = sum(self.voltages) / CELL_COUNT
+         avg_t = sum(self.temps) / CELL_COUNT
+         pack_v = sum(self.voltages)
+@@ -213,7 +216,11 @@ def main():
+                     print("Ping received -> echo sent")
+             elif len(packet) == 3:
+                 idx, lsb, msb = packet[0], packet[1], packet[2]
+-                if idx < 50:
++                # Firmware: no reply for SoC/NV (17/48/49) or shadowed 41/42/43
++                if idx in (17, 41, 42, 43, 48, 49) or idx >= 50:
++                    if args.verbose:
++                        print(f"WRITE idx {idx} refused silently (FW write guard)")
++                elif idx < 50:
+                     state.registers[idx] = (msb << 8) | lsb
+                     send(ser, register_frame(idx, state.registers[idx]),
+                          args.chunked, args.latency)
+-- 
+2.43.0
